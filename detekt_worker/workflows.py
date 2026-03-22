@@ -1,7 +1,7 @@
 from datetime import timedelta
 
 from temporalio import workflow
-from temporalio.common import WorkflowIDConflictPolicy
+from temporalio.common import RetryPolicy, WorkflowIDConflictPolicy
 
 with workflow.unsafe.imports_passed_through():
     from activities import (
@@ -24,7 +24,7 @@ class ProcessMentionWorkflow:
             validate_and_download_media,
             mention,
             start_to_close_timeout=timedelta(minutes=5),
-            retry_policy=workflow.RetryPolicy(
+            retry_policy=RetryPolicy(
                 initial_interval=timedelta(seconds=5),
                 backoff_coefficient=2.0,
                 maximum_interval=timedelta(minutes=2),
@@ -39,7 +39,7 @@ class ProcessMentionWorkflow:
             scan_media,
             scan_request,
             start_to_close_timeout=timedelta(minutes=10),
-            retry_policy=workflow.RetryPolicy(
+            retry_policy=RetryPolicy(
                 initial_interval=timedelta(seconds=10),
                 backoff_coefficient=2.0,
                 maximum_interval=timedelta(minutes=5),
@@ -54,7 +54,7 @@ class ProcessMentionWorkflow:
             reply_with_result,
             args=[scan_request, result],
             start_to_close_timeout=timedelta(minutes=2),
-            retry_policy=workflow.RetryPolicy(
+            retry_policy=RetryPolicy(
                 initial_interval=timedelta(seconds=5),
                 backoff_coefficient=2.0,
                 maximum_interval=timedelta(minutes=1),
@@ -71,7 +71,7 @@ class PollerWorkflow:
             mentions = await workflow.execute_activity(
                 poll_tiktok_mentions,
                 start_to_close_timeout=timedelta(minutes=5),
-                retry_policy=workflow.RetryPolicy(
+                retry_policy=RetryPolicy(
                     initial_interval=timedelta(seconds=10),
                     backoff_coefficient=2.0,
                     maximum_interval=timedelta(minutes=2),
