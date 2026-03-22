@@ -1,50 +1,54 @@
-import random
+from __future__ import annotations
+
+from urllib.parse import urlparse
+from typing import List, Optional
 
 import structlog
+from proxyproviders import ProxyProvider, ProxyConfig
+from proxyproviders.models.proxy import Proxy
 
 from utils.secrets import get_secret
 
 logger = structlog.get_logger()
 
-_proxy_list: list[str] | None = None
+
+class DopplerProxyProvider(ProxyProvider):
+    def __init__(
+        self,
+        secret_key: str = "DTKT_PROXY_URLS",
+        config: Optional[ProxyConfig] = None,
+    ):
+        self._secret_key = secret_key
+        super().__init__(config=config)
+
+    def _fetch_proxies(self) -> List[Proxy]:
+        raw = get_secret(self._secret_key)
+        urls = [u.strip() for u in raw.split(",") if u.strip()]
+
+        proxies: List[Proxy] = []
+        for idx, url in enumerate(urls):
+            parsed = urlparse(url)
+            proxy = Proxy(
+                id=str(idx),
+                username=parsed.username or "",
+                password=parsed.password or "",
+                proxy_address=parsed.hostname or "",
+                port=parsed.port or 80,
+                protocols=[parsed.scheme] if parsed.scheme else ["socks5"],
+            )
+            proxies.append(proxy)
+
+        logger.info("dtkt-proxies-loaded", count=len(proxies))
+        return proxies
 
 
-def _load_proxies() -> list[str]:
-    global _proxy_list
-    if _proxy_list is not None:
-        return _proxy_list
-
-    raw = get_secret("DTKT_PROXY_URLS")
-    proxies = [p.strip() for p in raw.split(",") if p.strip()]
-
-    if not proxies:
-        logger.warning("dtkt-no-proxies-configured")
-        _proxy_list = []
-        return _proxy_list
-
-    _proxy_list = proxies
-    logger.info("dtkt-proxies-loaded", count=len(_proxy_list))
-    return _proxy_list
+_provider: DopplerProxyProvider | None = None
 
 
-def reload_proxies() -> None:
-    global _proxy_list
-    _proxy_list = None
-
-
-def get_proxy() -> str | None:
-    proxies = _load_proxies()
-    if not proxies:
-        return None
-    return random.choice(proxies)
-
-
-def get_httpx_proxy() -> str | None:
-    return get_proxy()
-
-
-def get_playwright_proxy() -> dict | None:
-    url = get_proxy()
-    if not url:
-        return None
-    return {"server": url}
+def get_proxy_provider() -> DopplerProxyProvider:
+    global _provider
+    if _provider is None:
+        _provider = DopplerProxyProvider(
+            config=ProxyConfig(refresh_interval=120),
+        )
+    return _provider

@@ -5,8 +5,10 @@ import sentry_sdk
 from TikTokApi import TikTokApi
 import structlog
 
+from proxyproviders.algorithms import Random
+
 from utils.secrets import get_secret
-from utils.proxy import get_playwright_proxy
+from utils.proxy import get_proxy_provider
 
 logger = structlog.get_logger()
 
@@ -34,7 +36,6 @@ async def ensure_session() -> TikTokApi:
 
     try:
         _api = TikTokApi()
-        proxy = get_playwright_proxy()
         await _api.create_sessions(
             ms_tokens=[get_secret("DTKT_MS_TOKEN")],
             num_sessions=1,
@@ -42,7 +43,8 @@ async def ensure_session() -> TikTokApi:
             headless=True,
             browser="webkit",
             suppress_resource_load_types=["image", "media", "font", "stylesheet"],
-            proxy=proxy,
+            proxy_provider=get_proxy_provider(),
+            proxy_algorithm=Random(),
             cookies=[
                 {
                     "name": "sessionid",
