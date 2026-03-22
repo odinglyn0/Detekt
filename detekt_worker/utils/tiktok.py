@@ -31,7 +31,6 @@ async def ensure_session() -> TikTokApi:
     if _api is not None:
         return _api
 
-    ms_token = get_secret("DTKT_MS_TOKEN")
     try:
         _api = TikTokApi()
         await _api.create_sessions(
