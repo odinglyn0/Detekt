@@ -39,11 +39,8 @@ def get_proxy() -> str | None:
     return random.choice(proxies)
 
 
-def get_httpx_proxy_map() -> dict[str, str] | None:
-    url = get_proxy()
-    if not url:
-        return None
-    return {"http://": url, "https://": url}
+def get_httpx_proxy() -> str | None:
+    return get_proxy()
 
 
 def get_playwright_proxy() -> dict | None:

@@ -8,6 +8,8 @@ import httpx
 from google.cloud import storage as gcs
 import structlog
 
+from utils.proxy import get_httpx_proxy
+
 logger = structlog.get_logger()
 
 _client: gcs.Client | None = None
@@ -44,7 +46,8 @@ async def upload_video(
 ) -> str:
     bucket = _get_bucket()
 
-    async with httpx.AsyncClient() as client:
+    proxy = get_httpx_proxy()
+    async with httpx.AsyncClient(proxy=proxy) as client:
         resp = await client.get(
             download_url, headers=headers or {}, timeout=120, follow_redirects=True
         )
@@ -68,7 +71,8 @@ async def upload_slideshow_images(
     bucket = _get_bucket()
     paths = []
 
-    async with httpx.AsyncClient() as client:
+    proxy = get_httpx_proxy()
+    async with httpx.AsyncClient(proxy=proxy) as client:
         for idx, url in enumerate(image_urls, start=1):
             resp = await client.get(url, timeout=60, follow_redirects=True)
             resp.raise_for_status()

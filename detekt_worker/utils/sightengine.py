@@ -135,28 +135,35 @@ def format_result(
     low_max = float(get_secret("DTKT_LOW_CONFIDENCE_MAX"))
 
     if is_ai and ai_pct > low_max:
-        return random.choice([
-            f"@{tagger} yep, that's AI ({ai_pct:.0f}% sure)",
-            f"@{tagger} AI generated. {ai_pct:.0f}% confident.",
-            f"@{tagger} AI. {ai_pct:.0f}%.",
-        ])
+        return random.choice(
+            [
+                f"@{tagger} yep, that's AI ({ai_pct:.0f}% sure)",
+                f"@{tagger} AI generated. {ai_pct:.0f}% confident.",
+                f"@{tagger} AI. {ai_pct:.0f}%.",
+            ]
+        )
 
     if is_deepfake and df_pct > low_max:
-        return random.choice([
-            f"@{tagger} real {type_label} but the face is swapped ({df_pct:.0f}% sure)",
-            f"@{tagger} deepfake detected. {df_pct:.0f}% confident.",
-        ])
+        return random.choice(
+            [
+                f"@{tagger} real {type_label} but the face is swapped ({df_pct:.0f}% sure)",
+                f"@{tagger} deepfake detected. {df_pct:.0f}% confident.",
+            ]
+        )
 
     top_score = max(ai_pct, df_pct)
     if low_min <= top_score <= low_max:
-        return random.choice([
-            f"@{tagger} not sure on this one ({top_score:.0f}% AI generated/manipulated)",
-            f"@{tagger} inconclusive. {top_score:.0f}% AI generated/manipulated.",
-        ])
+        return random.choice(
+            [
+                f"@{tagger} not sure on this one ({top_score:.0f}% AI generated/manipulated)",
+                f"@{tagger} inconclusive. {top_score:.0f}% AI generated/manipulated.",
+            ]
+        )
 
-    return random.choice([
-        f"@{tagger} looks real to me ({ai_pct:.0f}% sure)",
-        f"@{tagger} it's not AI. {ai_pct:.0f}% confident.",
-        f"@{tagger} real. {ai_pct:.0f}% AI.",
-    ])
-
+    return random.choice(
+        [
+            f"@{tagger} looks real to me ({ai_pct:.0f}% sure)",
+            f"@{tagger} it's not AI. {ai_pct:.0f}% confident.",
+            f"@{tagger} real. {ai_pct:.0f}% AI.",
+        ]
+    )
