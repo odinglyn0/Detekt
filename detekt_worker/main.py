@@ -2,6 +2,7 @@ import asyncio
 import os
 import signal
 
+import sentry_sdk
 import structlog
 from temporalio.client import Client, WorkflowExecutionStatus
 from temporalio.common import WorkflowIDConflictPolicy
@@ -29,7 +30,20 @@ logger = structlog.get_logger()
 DTKT_TASK_QUEUE = "dtkt-task-queue"
 
 
+def _init_sentry() -> None:
+    dsn = get_secret("DTKT_SENTRY_DSN")
+    sentry_sdk.init(
+        dsn=dsn,
+        traces_sample_rate=1.0,
+        environment="production",
+        enable_tracing=True,
+    )
+    logger.info("dtkt-sentry-initialized")
+
+
 async def run() -> None:
+    _init_sentry()
+
     temporal_host = os.environ["DTKT_TEMPORAL_HOST"]
     temporal_namespace = os.environ.get("DTKT_TEMPORAL_NAMESPACE", "default")
     temporal_api_key = os.environ.get("DTKT_TEMPORAL_API_KEY", "")
