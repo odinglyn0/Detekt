@@ -1,6 +1,6 @@
 import time
 
-from upstash_redis import Redis
+from upstash_redis.asyncio import Redis
 import structlog
 
 from utils.secrets import get_secret
@@ -41,13 +41,13 @@ def _get_redis() -> Redis:
     return _redis
 
 
-def is_rate_limited(username: str) -> bool:
+async def is_rate_limited(username: str) -> bool:
     redis = _get_redis()
     rl_window = int(get_secret("DTKT_RATE_LIMIT_WINDOW"))
     rl_max = int(get_secret("DTKT_RATE_LIMIT_MAX"))
     key = f"dtkt-rl:{username}"
 
-    current = redis.get(key)
+    current = await redis.get(key)
     if current is not None and int(current) >= rl_max:
         logger.info("dtkt-rate-limited", user=username)
         return True
@@ -55,6 +55,6 @@ def is_rate_limited(username: str) -> bool:
     pipe = redis.pipeline()
     pipe.incr(key)
     pipe.expire(key, rl_window)
-    pipe.exec()
+    await pipe.exec()
 
     return False

@@ -1,19 +1,20 @@
 import os
 import time
 
-from google.cloud import firestore
+from google.cloud.firestore_v1.async_client import AsyncClient
+from google.cloud import firestore as firestore_types
 import structlog
 
 logger = structlog.get_logger()
 
-_db: firestore.Client | None = None
+_db: AsyncClient | None = None
 
 
-def _get_db() -> firestore.Client:
+def _get_db() -> AsyncClient:
     global _db
     if _db is not None:
         return _db
-    _db = firestore.Client()
+    _db = AsyncClient()
     logger.info("dtkt-firestore-init")
     return _db
 
@@ -22,9 +23,9 @@ def _scans_collection() -> str:
     return os.environ["DTKT_FIRESTORE_SCANS_COLLECTION"]
 
 
-def get_cached_result(media_id: str) -> dict | None:
+async def get_cached_result(media_id: str) -> dict | None:
     db = _get_db()
-    doc = db.collection(_scans_collection()).document(media_id).get()
+    doc = await db.collection(_scans_collection()).document(media_id).get()
     if not doc.exists:
         return None
 
@@ -36,7 +37,7 @@ def get_cached_result(media_id: str) -> dict | None:
     return None
 
 
-def store_scan_result(
+async def store_scan_result(
     media_id: str,
     media_type: str,
     ai_score: float,
@@ -49,7 +50,7 @@ def store_scan_result(
 ) -> None:
     db = _get_db()
     doc_ref = db.collection(_scans_collection()).document(media_id)
-    doc_ref.set(
+    await doc_ref.set(
         {
             "dtkt_status": "complete",
             "dtkt_media_id": media_id,
@@ -62,7 +63,7 @@ def store_scan_result(
             "dtkt_message": message,
             "dtkt_raw_response": raw_response,
             "dtkt_scanned_at": time.time(),
-            "dtkt_created_at": firestore.SERVER_TIMESTAMP,
+            "dtkt_created_at": firestore_types.SERVER_TIMESTAMP,
         }
     )
     logger.info("dtkt-firestore-stored", media_id=media_id, ai_score=ai_score)

@@ -1,6 +1,7 @@
 import asyncio
 import json
 
+import sentry_sdk
 from TikTokApi import TikTokApi
 import structlog
 
@@ -10,6 +11,8 @@ logger = structlog.get_logger()
 
 _api: TikTokApi | None = None
 _last_min_time: int = 0
+
+MAX_SESSION_RETRIES = 2
 
 
 def _get_supported_types() -> set[int]:
@@ -23,17 +26,28 @@ async def ensure_session() -> TikTokApi:
         return _api
 
     ms_token = get_secret("DTKT_MS_TOKEN")
-    _api = TikTokApi()
-    await _api.create_sessions(
-        ms_tokens=[ms_token],
-        num_sessions=1,
-        sleep_after=3,
-        headless=True,
-        browser="chromium",
-        suppress_resource_load_types=["image", "media", "font", "stylesheet"],
-    )
+    try:
+        _api = TikTokApi()
+        await _api.create_sessions(
+            ms_tokens=[ms_token],
+            num_sessions=1,
+            sleep_after=3,
+            headless=True,
+            browser="chromium",
+            suppress_resource_load_types=["image", "media", "font", "stylesheet"],
+        )
+    except Exception as exc:
+        _api = None
+        sentry_sdk.capture_exception(exc)
+        logger.error("dtkt-session-create-failed", error=str(exc))
+        raise
     logger.info("dtkt-tiktok-session-created")
     return _api
+
+
+async def recreate_session() -> TikTokApi:
+    await close_session()
+    return await ensure_session()
 
 
 async def close_session() -> None:
@@ -50,27 +64,42 @@ async def close_session() -> None:
 async def poll_mentions() -> list[dict]:
     global _last_min_time
 
-    api = await ensure_session()
-
-    data = await api.make_request(
-        url="https://www.tiktok.com/api/notice/multi/",
-        params={
-            "aid": "1988",
-            "app_name": "tiktok_web",
-            "device_platform": "web_pc",
-            "group_list": json.dumps(
-                [
-                    {
-                        "count": 20,
-                        "is_mark_read": 0,
-                        "group": 500,
-                        "max_time": 0,
-                        "min_time": _last_min_time,
-                    }
-                ]
-            ),
-        },
-    )
+    for attempt in range(MAX_SESSION_RETRIES + 1):
+        api = await ensure_session()
+        try:
+            data = await api.make_request(
+                url="https://www.tiktok.com/api/notice/multi/",
+                params={
+                    "aid": "1988",
+                    "app_name": "tiktok_web",
+                    "device_platform": "web_pc",
+                    "group_list": json.dumps(
+                        [
+                            {
+                                "count": 20,
+                                "is_mark_read": 0,
+                                "group": 500,
+                                "max_time": 0,
+                                "min_time": _last_min_time,
+                            }
+                        ]
+                    ),
+                },
+            )
+            break
+        except Exception as exc:
+            if attempt < MAX_SESSION_RETRIES:
+                logger.warning(
+                    "dtkt-poll-failed-retrying",
+                    attempt=attempt + 1,
+                    error=str(exc),
+                )
+                sentry_sdk.capture_exception(exc)
+                await recreate_session()
+            else:
+                sentry_sdk.capture_exception(exc)
+                logger.error("dtkt-poll-failed-exhausted", error=str(exc))
+                return []
 
     mentions: list[dict] = []
     notice_lists = data.get("notice_lists", [])
@@ -123,13 +152,25 @@ def is_supported_aweme(aweme_type: int) -> bool:
 
 
 async def get_video_info(video_id: str) -> dict | None:
-    api = await ensure_session()
-    try:
-        video = api.video(id=video_id)
-        return await video.info()
-    except Exception as exc:
-        logger.warning("dtkt-video-info-error", vid=video_id, error=str(exc))
-        return None
+    for attempt in range(MAX_SESSION_RETRIES + 1):
+        api = await ensure_session()
+        try:
+            video = api.video(id=video_id)
+            return await video.info()
+        except Exception as exc:
+            if attempt < MAX_SESSION_RETRIES:
+                logger.warning(
+                    "dtkt-video-info-retrying",
+                    vid=video_id,
+                    attempt=attempt + 1,
+                    error=str(exc),
+                )
+                sentry_sdk.capture_exception(exc)
+                await recreate_session()
+            else:
+                sentry_sdk.capture_exception(exc)
+                logger.warning("dtkt-video-info-error", vid=video_id, error=str(exc))
+                return None
 
 
 def extract_video_download_url(aweme: dict) -> str | None:
@@ -158,25 +199,46 @@ def extract_slideshow_image_urls(aweme: dict) -> list[str]:
     return urls
 
 
-async def reply_to_comment(vid: str, cid: str, username: str, result_text: str) -> dict:
-    api = await ensure_session()
+async def reply_to_comment(
+    vid: str, cid: str, username: str, result_text: str, reply_type: str = "2"
+) -> dict | None:
     safe_text = json.dumps(f"@{username} {result_text}")
     safe_vid = json.dumps(vid)
     safe_cid = json.dumps(cid)
-    result = await api._sessions[0].page.evaluate(
-        f"""async () => {{
-            const body = new URLSearchParams({{
-                aweme_id: {safe_vid},
-                text: {safe_text},
-                reply_id: {safe_cid},
-                reply_type: "2"
-            }});
-            const response = await fetch(
-                "https://www.tiktok.com/api/comment/publish/",
-                {{ method: "POST", body: body }}
-            );
-            return await response.json();
-        }}"""
-    )
-    logger.info("dtkt-reply-posted", vid=vid, cid=cid, result=result)
-    return result
+    safe_reply_type = json.dumps(reply_type)
+
+    for attempt in range(MAX_SESSION_RETRIES + 1):
+        api = await ensure_session()
+        try:
+            result = await api._sessions[0].page.evaluate(
+                f"""async () => {{
+                    const body = new URLSearchParams({{
+                        aweme_id: {safe_vid},
+                        text: {safe_text},
+                        reply_id: {safe_cid},
+                        reply_type: {safe_reply_type}
+                    }});
+                    const response = await fetch(
+                        "https://www.tiktok.com/api/comment/publish/",
+                        {{ method: "POST", body: body }}
+                    );
+                    return await response.json();
+                }}"""
+            )
+            logger.info("dtkt-reply-posted", vid=vid, cid=cid, result=result)
+            return result
+        except Exception as exc:
+            if attempt < MAX_SESSION_RETRIES:
+                logger.warning(
+                    "dtkt-reply-retrying",
+                    vid=vid,
+                    cid=cid,
+                    attempt=attempt + 1,
+                    error=str(exc),
+                )
+                sentry_sdk.capture_exception(exc)
+                await recreate_session()
+            else:
+                sentry_sdk.capture_exception(exc)
+                logger.error("dtkt-reply-failed", vid=vid, cid=cid, error=str(exc))
+                return None

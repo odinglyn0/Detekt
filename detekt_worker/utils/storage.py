@@ -1,3 +1,4 @@
+import asyncio
 import datetime
 import mimetypes
 import os
@@ -38,51 +39,60 @@ def _guess_extension(url: str, content_type: str | None) -> str:
     return "mp4"
 
 
-def upload_video(video_id: str, download_url: str, headers: dict | None = None) -> str:
+async def upload_video(
+    video_id: str, download_url: str, headers: dict | None = None
+) -> str:
     bucket = _get_bucket()
 
-    resp = httpx.get(
-        download_url, headers=headers or {}, timeout=120, follow_redirects=True
-    )
-    resp.raise_for_status()
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            download_url, headers=headers or {}, timeout=120, follow_redirects=True
+        )
+        resp.raise_for_status()
 
     content_type = resp.headers.get("content-type")
     ext = _guess_extension(download_url, content_type)
     blob_path = f"vids/{video_id}/video.{ext}"
 
     blob = bucket.blob(blob_path)
-    blob.upload_from_string(resp.content, content_type=content_type or "video/mp4")
+    await asyncio.to_thread(
+        blob.upload_from_string, resp.content, content_type or "video/mp4"
+    )
     logger.info("dtkt-video-uploaded", path=blob_path, size=len(resp.content))
     return blob_path
 
 
-def upload_slideshow_images(
+async def upload_slideshow_images(
     video_id: str, image_urls: list[str]
 ) -> tuple[list[str], int]:
     bucket = _get_bucket()
     paths = []
 
-    for idx, url in enumerate(image_urls, start=1):
-        resp = httpx.get(url, timeout=60, follow_redirects=True)
-        resp.raise_for_status()
+    async with httpx.AsyncClient() as client:
+        for idx, url in enumerate(image_urls, start=1):
+            resp = await client.get(url, timeout=60, follow_redirects=True)
+            resp.raise_for_status()
 
-        content_type = resp.headers.get("content-type")
-        ext = _guess_extension(url, content_type)
-        blob_path = f"pics/{video_id}/{idx}.{ext}"
+            content_type = resp.headers.get("content-type")
+            ext = _guess_extension(url, content_type)
+            blob_path = f"pics/{video_id}/{idx}.{ext}"
 
-        blob = bucket.blob(blob_path)
-        blob.upload_from_string(resp.content, content_type=content_type or "image/jpeg")
-        paths.append(blob_path)
+            blob = bucket.blob(blob_path)
+            await asyncio.to_thread(
+                blob.upload_from_string, resp.content, content_type or "image/jpeg"
+            )
+            paths.append(blob_path)
 
     quantity = len(paths)
     logger.info("dtkt-slideshow-uploaded", video_id=video_id, count=quantity)
     return paths, quantity
 
 
-def get_signed_url(blob_path: str, expiry_minutes: int = 30) -> str:
+async def get_signed_url(blob_path: str, expiry_minutes: int = 30) -> str:
     bucket = _get_bucket()
     blob = bucket.blob(blob_path)
-    url = blob.generate_signed_url(
+    url = await asyncio.to_thread(
+        blob.generate_signed_url,
         version="v4",
         expiration=datetime.timedelta(minutes=expiry_minutes),
         method="GET",
@@ -90,19 +100,23 @@ def get_signed_url(blob_path: str, expiry_minutes: int = 30) -> str:
     return url
 
 
-def get_video_blob_path(vid: str) -> str | None:
+async def get_video_blob_path(vid: str) -> str | None:
     bucket = _get_bucket()
     prefix = f"vids/{vid}/"
-    blobs = list(bucket.list_blobs(prefix=prefix, max_results=1))
+    blobs = await asyncio.to_thread(
+        lambda: list(bucket.list_blobs(prefix=prefix, max_results=1))
+    )
     if blobs:
         return blobs[0].name
     return None
 
 
-def get_photo_blob_path(vid: str) -> str | None:
+async def get_photo_blob_path(vid: str) -> str | None:
     bucket = _get_bucket()
     prefix = f"pics/{vid}/"
-    blobs = list(bucket.list_blobs(prefix=prefix, max_results=1))
+    blobs = await asyncio.to_thread(
+        lambda: list(bucket.list_blobs(prefix=prefix, max_results=1))
+    )
     if blobs:
         return blobs[0].name
     return None

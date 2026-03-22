@@ -1,5 +1,7 @@
 from dataclasses import dataclass
+import asyncio
 
+import sentry_sdk
 from temporalio import activity
 import structlog
 
@@ -11,6 +13,7 @@ from utils.tiktok import (
     extract_video_download_url,
     extract_slideshow_image_urls,
     reply_to_comment,
+    recreate_session,
 )
 from utils.storage import (
     upload_video,
@@ -131,10 +134,12 @@ async def validate_and_download_media(mention: MentionData) -> ScanRequest | Non
     try:
         if content_type == 1:
             if video_url:
-                upload_video(mention.aweme_id, video_url)
+                await upload_video(mention.aweme_id, video_url)
         else:
             if image_urls:
-                _, quantity = upload_slideshow_images(mention.aweme_id, image_urls)
+                _, quantity = await upload_slideshow_images(
+                    mention.aweme_id, image_urls
+                )
             else:
                 quantity = 0
     except Exception as exc:
@@ -156,18 +161,22 @@ async def validate_and_download_media(mention: MentionData) -> ScanRequest | Non
 async def scan_media(request: ScanRequest) -> dict | None:
     media_type = "video" if request.content_type == 1 else "photo"
 
-    if (
-        request.content_type == 0
-        and request.quantity is not None
-        and request.quantity > 1
-    ):
-        logger.info("dtkt-slideshow-skipped", vid=request.vid, q=request.quantity)
-        return None
+    if request.content_type == 0 and request.quantity is not None:
+        if request.quantity == 0:
+            logger.warning(
+                "dtkt-slideshow-no-images",
+                vid=request.vid,
+                msg="quantity is 0, media download may have failed",
+            )
+            return None
+        if request.quantity > 1:
+            logger.info("dtkt-slideshow-skipped", vid=request.vid, q=request.quantity)
+            return None
 
-    if is_rate_limited(request.username):
+    if await is_rate_limited(request.username):
         raise RuntimeError(f"rate limited: {request.username}")
 
-    cached = get_cached_result(request.vid)
+    cached = await get_cached_result(request.vid)
     if cached:
         return {
             "dtkt_ai_score": cached["dtkt_ai_score"],
@@ -176,21 +185,21 @@ async def scan_media(request: ScanRequest) -> dict | None:
         }
 
     if request.content_type == 1:
-        blob_path = get_video_blob_path(request.vid)
+        blob_path = await get_video_blob_path(request.vid)
         if not blob_path:
             logger.warning("dtkt-video-not-found-in-bucket", vid=request.vid)
             raise RuntimeError(f"video blob not found for {request.vid}")
-        signed_url = get_signed_url(blob_path)
-        scan = check_video(signed_url)
+        signed_url = await get_signed_url(blob_path)
+        scan = await asyncio.to_thread(check_video, signed_url)
     else:
-        blob_path = get_photo_blob_path(request.vid)
+        blob_path = await get_photo_blob_path(request.vid)
         if not blob_path:
             logger.warning("dtkt-photo-not-found-in-bucket", vid=request.vid)
             raise RuntimeError(f"photo blob not found for {request.vid}")
-        signed_url = get_signed_url(blob_path)
-        scan = check_image(signed_url)
+        signed_url = await get_signed_url(blob_path)
+        scan = await asyncio.to_thread(check_image, signed_url)
 
-    store_scan_result(
+    await store_scan_result(
         media_id=request.vid,
         media_type=media_type,
         ai_score=scan["dtkt_ai_score"],
@@ -220,5 +229,6 @@ async def reply_with_result(request: ScanRequest, result: dict) -> None:
     try:
         await reply_to_comment(request.vid, request.cid, request.username, result_text)
     except Exception as exc:
+        sentry_sdk.capture_exception(exc)
         logger.warning("dtkt-reply-error", vid=request.vid, error=str(exc))
     logger.info("dtkt-result-sent", vid=request.vid, result=result_text)
