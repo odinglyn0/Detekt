@@ -125,10 +125,38 @@ def format_result(
     is_deepfake: bool,
     deepfake_score: float,
 ) -> str:
+    import random
+
     type_label = "photo" if media_type == "photo" else "video"
-    if is_ai:
-        return f"@{tagger} - the {type_label} is AI generated {ai_score*100:.0f}% sure."
-    elif is_deepfake:
-        return f"@{tagger} - the {type_label} is a deepfake {deepfake_score*100:.0f}% sure."
-    else:
-        return f"@{tagger} - the {type_label} looks real {ai_score*100:.0f}% sure."
+    ai_pct = ai_score * 100
+    df_pct = deepfake_score * 100
+
+    low_min = 40.0
+    low_max = 60.0
+
+    if is_ai and ai_pct > low_max:
+        return random.choice([
+            f"@{tagger} yep, that's AI ({ai_pct:.0f}% sure)",
+            f"@{tagger} AI generated. {ai_pct:.0f}% confident.",
+            f"@{tagger} AI. {ai_pct:.0f}%.",
+        ])
+
+    if is_deepfake and df_pct > low_max:
+        return random.choice([
+            f"@{tagger} real {type_label} but the face is swapped ({df_pct:.0f}% sure)",
+            f"@{tagger} deepfake detected. {df_pct:.0f}% confident.",
+        ])
+
+    top_score = max(ai_pct, df_pct)
+    if low_min <= top_score <= low_max:
+        return random.choice([
+            f"@{tagger} not sure on this one ({top_score:.0f}% AI generated/manipulated)",
+            f"@{tagger} inconclusive. {top_score:.0f}% AI generated/manipulated.",
+        ])
+
+    return random.choice([
+        f"@{tagger} looks real to me ({ai_pct:.0f}% sure)",
+        f"@{tagger} it's not AI. {ai_pct:.0f}% confident.",
+        f"@{tagger} real. {ai_pct:.0f}% AI.",
+    ])
+
