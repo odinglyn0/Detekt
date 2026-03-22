@@ -238,5 +238,6 @@ async def reply_with_result(request: ScanRequest, result: dict) -> None:
         await reply_to_comment(request.vid, request.cid, request.username, result_text)
     except Exception as exc:
         sentry_sdk.capture_exception(exc)
+        sentry_sdk.flush(timeout=2)
         logger.warning("dtkt-reply-error", vid=request.vid, error=str(exc))
     logger.info("dtkt-result-sent", vid=request.vid, result=result_text)

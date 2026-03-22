@@ -33,12 +33,15 @@ DTKT_TASK_QUEUE = "dtkt-task-queue"
 
 
 def _init_sentry() -> None:
+    from sentry_sdk.integrations.asyncio import AsyncioIntegration
+
     dsn = get_secret("DTKT_SENTRY_DSN")
     sentry_sdk.init(
         dsn=dsn,
         traces_sample_rate=1.0,
         environment="production",
         enable_tracing=True,
+        integrations=[AsyncioIntegration()],
     )
     logger.info("dtkt-sentry-initialized")
 
@@ -115,6 +118,7 @@ async def run() -> None:
         await shutdown_event.wait()
 
     await close_session()
+    sentry_sdk.flush(timeout=5)
     logger.info("dtkt-worker-stopped")
 
 
