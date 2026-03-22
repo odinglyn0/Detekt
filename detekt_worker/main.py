@@ -17,6 +17,7 @@ from activities import (
     get_poll_interval,
 )
 from utils.secrets import get_secret
+from utils.tiktok import ensure_session, close_session
 
 structlog.configure(
     processors=[
@@ -66,6 +67,8 @@ async def run() -> None:
 
     logger.info("dtkt-worker-connected")
 
+    await ensure_session()
+
     worker = Worker(
         client,
         task_queue=DTKT_TASK_QUEUE,
@@ -111,6 +114,7 @@ async def run() -> None:
 
         await shutdown_event.wait()
 
+    await close_session()
     logger.info("dtkt-worker-stopped")
 
 

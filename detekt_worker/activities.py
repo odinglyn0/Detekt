@@ -1,4 +1,3 @@
-import asyncio
 from dataclasses import dataclass
 
 from temporalio import activity
@@ -6,15 +5,12 @@ import structlog
 
 from utils.secrets import get_secret
 from utils.tiktok import (
-    create_api_session,
-    close_api_session,
     poll_mentions,
     is_supported_aweme,
-    determine_type,
     get_video_info,
     extract_video_download_url,
     extract_slideshow_image_urls,
-    reply_sync,
+    reply_to_comment,
 )
 from utils.storage import (
     upload_video,
@@ -42,6 +38,9 @@ class MentionData:
     username: str
     aweme_type: int | None
     message: str
+    media_type: str
+    video_url: str | None = None
+    image_urls: list[str] | None = None
 
 
 @dataclass
@@ -56,20 +55,9 @@ class ScanRequest:
 
 @activity.defn
 async def poll_tiktok_mentions() -> list[MentionData]:
-    try:
-        await create_api_session()
-    except Exception as exc:
-        await close_api_session()
-        raise exc
-
-    try:
-        mentions = await poll_mentions()
-    except Exception as exc:
-        await close_api_session()
-        raise exc
+    mentions = await poll_mentions()
 
     if not mentions:
-        await close_api_session()
         return []
 
     trigger_word = get_secret("DTKT_TRIGGER_WORD").lower()
@@ -77,19 +65,14 @@ async def poll_tiktok_mentions() -> list[MentionData]:
     blacklist = {u.strip().lower() for u in blacklist_raw.split(",") if u.strip()}
 
     results = []
-    for n in mentions:
-        cid = str(getattr(n, "comment_id", "") or "")
-        if not cid:
-            continue
+    for m in mentions:
+        cid = str(m.get("comment_id", "") or "")
+        vid = str(m.get("aweme_id", "") or "")
+        username = m.get("username", "")
+        aweme_type = m.get("aweme_type")
+        message = m.get("comment_text", "")
 
-        vid = str(getattr(n, "aweme_id", "") or "")
-        username = (
-            getattr(n.user, "unique_id", "unknown") if hasattr(n, "user") else "unknown"
-        )
-        aweme_type = getattr(n, "aweme_type", None)
-        message = getattr(n, "text", "") or getattr(n, "comment_text", "") or ""
-
-        if not vid:
+        if not cid or not vid:
             continue
 
         if trigger_word not in message.lower():
@@ -110,41 +93,18 @@ async def poll_tiktok_mentions() -> list[MentionData]:
                 username=username,
                 aweme_type=aweme_type,
                 message=message,
+                media_type=m.get("media_type", "video"),
+                video_url=m.get("video_url"),
+                image_urls=m.get("image_urls"),
             )
         )
 
-    await close_api_session()
     return results
 
 
 @activity.defn
 async def validate_and_download_media(mention: MentionData) -> ScanRequest | None:
-    try:
-        await create_api_session()
-    except Exception as exc:
-        await close_api_session()
-        raise exc
-
-    try:
-        aweme = await get_video_info(mention.aweme_id)
-    except Exception as exc:
-        await close_api_session()
-        raise exc
-
-    if not aweme:
-        await close_api_session()
-        return None
-
-    if mention.aweme_type is None and not is_supported_aweme(
-        aweme.get("aweme_type", -1)
-    ):
-        logger.info(
-            "dtkt-unsupported-type", vid=mention.aweme_id, type=aweme.get("aweme_type")
-        )
-        await close_api_session()
-        return None
-
-    content_type = determine_type(aweme)
+    content_type = 0 if mention.media_type == "slideshow" else 1
 
     logger.info(
         "dtkt-mention-found",
@@ -154,14 +114,25 @@ async def validate_and_download_media(mention: MentionData) -> ScanRequest | Non
         content_type=content_type,
     )
 
+    video_url = mention.video_url
+    image_urls = mention.image_urls
+
+    if content_type == 1 and not video_url:
+        aweme = await get_video_info(mention.aweme_id)
+        if aweme:
+            video_url = extract_video_download_url(aweme)
+
+    if content_type == 0 and not image_urls:
+        aweme = await get_video_info(mention.aweme_id)
+        if aweme:
+            image_urls = extract_slideshow_image_urls(aweme)
+
     quantity = None
     try:
         if content_type == 1:
-            dl_url = extract_video_download_url(aweme)
-            if dl_url:
-                upload_video(mention.aweme_id, dl_url)
+            if video_url:
+                upload_video(mention.aweme_id, video_url)
         else:
-            image_urls = extract_slideshow_image_urls(aweme)
             if image_urls:
                 _, quantity = upload_slideshow_images(mention.aweme_id, image_urls)
             else:
@@ -170,8 +141,6 @@ async def validate_and_download_media(mention: MentionData) -> ScanRequest | Non
         logger.warning(
             "dtkt-media-download-error", vid=mention.aweme_id, error=str(exc)
         )
-
-    await close_api_session()
 
     return ScanRequest(
         vid=mention.aweme_id,
@@ -249,7 +218,7 @@ async def reply_with_result(request: ScanRequest, result: dict) -> None:
         ai_score=result["dtkt_ai_score"],
     )
     try:
-        reply_sync(request.vid, request.cid, request.username, result_text)
+        await reply_to_comment(request.vid, request.cid, request.username, result_text)
     except Exception as exc:
         logger.warning("dtkt-reply-error", vid=request.vid, error=str(exc))
     logger.info("dtkt-result-sent", vid=request.vid, result=result_text)
