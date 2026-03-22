@@ -13,6 +13,12 @@ _api: TikTokApi | None = None
 _last_min_time: int = 0
 
 MAX_SESSION_RETRIES = 2
+SENTRY_FLUSH_TIMEOUT = 2
+
+
+def _report(exc: Exception) -> None:
+    sentry_sdk.capture_exception(exc)
+    sentry_sdk.flush(timeout=SENTRY_FLUSH_TIMEOUT)
 
 
 def _get_supported_types() -> set[int]:
@@ -29,16 +35,20 @@ async def ensure_session() -> TikTokApi:
     try:
         _api = TikTokApi()
         await _api.create_sessions(
-            ms_tokens=[ms_token],
             num_sessions=1,
             sleep_after=3,
             headless=True,
             browser="chromium",
             suppress_resource_load_types=["image", "media", "font", "stylesheet"],
+            cookies=[
+                {"name": "sessionid", "value": get_secret("DTKT_TT_SESSIONID"), "domain": ".tiktok.com"},
+                {"name": "tt_csrf_token", "value": get_secret("DTKT_TT_CSRF_TOKEN"), "domain": ".tiktok.com"},
+                {"name": "s_v_web_id", "value": get_secret("DTKT_TT_S_V_WEB_ID"), "domain": ".tiktok.com"},
+            ],
         )
     except Exception as exc:
         _api = None
-        sentry_sdk.capture_exception(exc)
+        _report(exc)
         logger.error("dtkt-session-create-failed", error=str(exc))
         raise
     logger.info("dtkt-tiktok-session-created")
@@ -94,10 +104,10 @@ async def poll_mentions() -> list[dict]:
                     attempt=attempt + 1,
                     error=str(exc),
                 )
-                sentry_sdk.capture_exception(exc)
+                _report(exc)
                 await recreate_session()
             else:
-                sentry_sdk.capture_exception(exc)
+                _report(exc)
                 logger.error("dtkt-poll-failed-exhausted", error=str(exc))
                 return []
 
@@ -165,10 +175,10 @@ async def get_video_info(video_id: str) -> dict | None:
                     attempt=attempt + 1,
                     error=str(exc),
                 )
-                sentry_sdk.capture_exception(exc)
+                _report(exc)
                 await recreate_session()
             else:
-                sentry_sdk.capture_exception(exc)
+                _report(exc)
                 logger.warning("dtkt-video-info-error", vid=video_id, error=str(exc))
                 return None
 
@@ -236,9 +246,9 @@ async def reply_to_comment(
                     attempt=attempt + 1,
                     error=str(exc),
                 )
-                sentry_sdk.capture_exception(exc)
+                _report(exc)
                 await recreate_session()
             else:
-                sentry_sdk.capture_exception(exc)
+                _report(exc)
                 logger.error("dtkt-reply-failed", vid=vid, cid=cid, error=str(exc))
                 return None
