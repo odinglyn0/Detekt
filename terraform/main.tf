@@ -41,6 +41,18 @@ resource "google_project_iam_member" "dtkt_worker_token_creator" {
   member  = "serviceAccount:${google_service_account.dtkt_worker.email}"
 }
 
+resource "google_project_iam_member" "dtkt_worker_artifact_registry" {
+  project = var.dtkt_gcp_project
+  role    = "roles/artifactregistry.reader"
+  member  = "serviceAccount:${google_service_account.dtkt_worker.email}"
+}
+
+resource "google_project_iam_member" "dtkt_worker_logging" {
+  project = var.dtkt_gcp_project
+  role    = "roles/logging.logWriter"
+  member  = "serviceAccount:${google_service_account.dtkt_worker.email}"
+}
+
 resource "google_firestore_database" "dtkt_default" {
   project     = var.dtkt_gcp_project
   name        = "(default)"
