@@ -131,8 +131,8 @@ def format_result(
     ai_pct = ai_score * 100
     df_pct = deepfake_score * 100
 
-    low_min = 40.0
-    low_max = 60.0
+    low_min = float(get_secret("DTKT_LOW_CONFIDENCE_MIN"))
+    low_max = float(get_secret("DTKT_LOW_CONFIDENCE_MAX"))
 
     if is_ai and ai_pct > low_max:
         return random.choice([
