@@ -1,0 +1,3 @@
+dtkt_gcp_project                     = "your-gcp-project-id"
+dtkt_doppler_token                   = "dp.st.poller_xxxx"
+dtkt_scanner_doppler_token           = "dp.st.scanner_xxxx"

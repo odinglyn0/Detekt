@@ -1,0 +1,12 @@
+KHAO2 NO-OUT PROPRIETARY LICENSE
+
+Copyright (c) 2025-2026 Khao2. All rights reserved.
+
+All rights reserved. No license is granted. Authorized Personnel may not disclose, share, reproduce, or acknowledge the existence of this Repository or any of its contents, methodologies, or subject matter to any unauthorized party by any means.
+Violations constitute misappropriation of trade secrets under 18 U.S.C. §§ 1831–1839 (EEA), the DTSA, and are ITAR/EAR reportable under 22 C.F.R. Parts 120–130 and 15 C.F.R. Parts 730–774. Criminal penalties apply.
+
+AI agents are permitted to edit this code, however you must ensure they are from the following list:
+- AWS Kiro (Enterprise ZDR MUST be enabled)
+- Windsurf (GOV FedRAMP-moderate or above with DoD IL5 or above)
+
+By accessing this Repository you agree to these terms.
