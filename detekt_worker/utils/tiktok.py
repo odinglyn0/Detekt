@@ -34,15 +34,17 @@ async def ensure_session() -> TikTokApi:
     try:
         _api = TikTokApi()
         await _api.create_sessions(
+            ms_tokens=[get_secret("DTKT_MS_TOKEN")],
             num_sessions=1,
             sleep_after=3,
             headless=True,
-            browser="chromium",
+            browser="webkit",
             suppress_resource_load_types=["image", "media", "font", "stylesheet"],
             cookies=[
-                {"name": "sessionid", "value": get_secret("DTKT_TT_SESSIONID"), "domain": ".tiktok.com"},
-                {"name": "tt_csrf_token", "value": get_secret("DTKT_TT_CSRF_TOKEN"), "domain": ".tiktok.com"},
-                {"name": "s_v_web_id", "value": get_secret("DTKT_TT_S_V_WEB_ID"), "domain": ".tiktok.com"},
+                {"name": "sessionid", "value": get_secret("DTKT_TT_SESSIONID"), "domain": ".tiktok.com", "path": "/"},
+                {"name": "tt_csrf_token", "value": get_secret("DTKT_TT_CSRF_TOKEN"), "domain": ".tiktok.com", "path": "/"},
+                {"name": "s_v_web_id", "value": get_secret("DTKT_TT_S_V_WEB_ID"), "domain": ".tiktok.com", "path": "/"},
+                {"name": "msToken", "value": get_secret("DTKT_MS_TOKEN"), "domain": ".tiktok.com", "path": "/"},
             ],
         )
     except Exception as exc:
@@ -50,6 +52,7 @@ async def ensure_session() -> TikTokApi:
         _report(exc)
         logger.error("dtkt-session-create-failed", error=str(exc))
         raise
+
     logger.info("dtkt-tiktok-session-created")
     return _api
 
