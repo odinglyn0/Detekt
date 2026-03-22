@@ -14,6 +14,7 @@ from activities import (
     validate_and_download_media,
     scan_media,
     reply_with_result,
+    get_poll_interval,
 )
 from utils.secrets import get_secret
 
@@ -49,7 +50,9 @@ async def run() -> None:
     temporal_api_key = os.environ.get("DTKT_TEMPORAL_API_KEY", "")
     poll_interval = int(get_secret("DTKT_POLL_INTERVAL_SECONDS"))
 
-    logger.info("dtkt-worker-connecting", host=temporal_host, namespace=temporal_namespace)
+    logger.info(
+        "dtkt-worker-connecting", host=temporal_host, namespace=temporal_namespace
+    )
 
     connect_kwargs = {
         "target_host": temporal_host,
@@ -72,6 +75,7 @@ async def run() -> None:
             validate_and_download_media,
             scan_media,
             reply_with_result,
+            get_poll_interval,
         ],
     )
 

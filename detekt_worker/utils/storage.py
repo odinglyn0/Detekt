@@ -41,7 +41,9 @@ def _guess_extension(url: str, content_type: str | None) -> str:
 def upload_video(video_id: str, download_url: str, headers: dict | None = None) -> str:
     bucket = _get_bucket()
 
-    resp = httpx.get(download_url, headers=headers or {}, timeout=120, follow_redirects=True)
+    resp = httpx.get(
+        download_url, headers=headers or {}, timeout=120, follow_redirects=True
+    )
     resp.raise_for_status()
 
     content_type = resp.headers.get("content-type")
@@ -54,7 +56,9 @@ def upload_video(video_id: str, download_url: str, headers: dict | None = None) 
     return blob_path
 
 
-def upload_slideshow_images(video_id: str, image_urls: list[str]) -> tuple[list[str], int]:
+def upload_slideshow_images(
+    video_id: str, image_urls: list[str]
+) -> tuple[list[str], int]:
     bucket = _get_bucket()
     paths = []
 

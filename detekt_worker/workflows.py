@@ -11,6 +11,7 @@ with workflow.unsafe.imports_passed_through():
         validate_and_download_media,
         scan_media,
         reply_with_result,
+        get_poll_interval,
     )
 
 DTKT_MAX_POLLS_BEFORE_CAN = 50
@@ -89,4 +90,12 @@ class PollerWorkflow:
 
             await workflow.sleep(timedelta(seconds=poll_interval_seconds))
 
-        workflow.continue_as_new(poll_interval_seconds)
+        fresh_interval = await workflow.execute_activity(
+            get_poll_interval,
+            start_to_close_timeout=timedelta(seconds=30),
+            retry_policy=RetryPolicy(
+                maximum_attempts=2,
+            ),
+        )
+
+        workflow.continue_as_new(fresh_interval)

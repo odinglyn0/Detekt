@@ -20,7 +20,11 @@ DTKT_CLIENT_REFRESH_INTERVAL = 120
 
 def _build_clients() -> list[SightengineClient]:
     clients = []
-    dtkt_use_pool = get_secret("DTKT_SIGHTENGINE_ACC_POOL").lower() in ("true", "1", "yes")
+    dtkt_use_pool = get_secret("DTKT_SIGHTENGINE_ACC_POOL").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
 
     if dtkt_use_pool:
         raw = get_secret("DTKT_SIGHTENGINE_ACCS")
@@ -42,11 +46,18 @@ def _get_client() -> SightengineClient:
 
     with _lock:
         now = time.monotonic()
-        needs_refresh = not _clients or (now - _last_init) > DTKT_CLIENT_REFRESH_INTERVAL
+        needs_refresh = (
+            not _clients or (now - _last_init) > DTKT_CLIENT_REFRESH_INTERVAL
+        )
 
         if needs_refresh:
             try:
-                raw = get_secret("DTKT_SIGHTENGINE_ACCS") if get_secret("DTKT_SIGHTENGINE_ACC_POOL").lower() in ("true", "1", "yes") else ""
+                raw = (
+                    get_secret("DTKT_SIGHTENGINE_ACCS")
+                    if get_secret("DTKT_SIGHTENGINE_ACC_POOL").lower()
+                    in ("true", "1", "yes")
+                    else ""
+                )
             except SystemExit:
                 raw = ""
 

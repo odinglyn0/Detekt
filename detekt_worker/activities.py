@@ -30,6 +30,11 @@ from utils.rate_limiter import is_rate_limited
 logger = structlog.get_logger()
 
 
+@activity.defn
+async def get_poll_interval() -> int:
+    return int(get_secret("DTKT_POLL_INTERVAL_SECONDS"))
+
+
 @dataclass
 class MentionData:
     comment_id: str
@@ -78,7 +83,9 @@ async def poll_tiktok_mentions() -> list[MentionData]:
             continue
 
         vid = str(getattr(n, "aweme_id", "") or "")
-        username = getattr(n.user, "unique_id", "unknown") if hasattr(n, "user") else "unknown"
+        username = (
+            getattr(n.user, "unique_id", "unknown") if hasattr(n, "user") else "unknown"
+        )
         aweme_type = getattr(n, "aweme_type", None)
         message = getattr(n, "text", "") or getattr(n, "comment_text", "") or ""
 
@@ -96,13 +103,15 @@ async def poll_tiktok_mentions() -> list[MentionData]:
             logger.info("dtkt-unsupported-type", vid=vid, type=aweme_type)
             continue
 
-        results.append(MentionData(
-            comment_id=cid,
-            aweme_id=vid,
-            username=username,
-            aweme_type=aweme_type,
-            message=message,
-        ))
+        results.append(
+            MentionData(
+                comment_id=cid,
+                aweme_id=vid,
+                username=username,
+                aweme_type=aweme_type,
+                message=message,
+            )
+        )
 
     await close_api_session()
     return results
@@ -126,8 +135,12 @@ async def validate_and_download_media(mention: MentionData) -> ScanRequest | Non
         await close_api_session()
         return None
 
-    if mention.aweme_type is None and not is_supported_aweme(aweme.get("aweme_type", -1)):
-        logger.info("dtkt-unsupported-type", vid=mention.aweme_id, type=aweme.get("aweme_type"))
+    if mention.aweme_type is None and not is_supported_aweme(
+        aweme.get("aweme_type", -1)
+    ):
+        logger.info(
+            "dtkt-unsupported-type", vid=mention.aweme_id, type=aweme.get("aweme_type")
+        )
         await close_api_session()
         return None
 
@@ -154,7 +167,9 @@ async def validate_and_download_media(mention: MentionData) -> ScanRequest | Non
             else:
                 quantity = 0
     except Exception as exc:
-        logger.warning("dtkt-media-download-error", vid=mention.aweme_id, error=str(exc))
+        logger.warning(
+            "dtkt-media-download-error", vid=mention.aweme_id, error=str(exc)
+        )
 
     await close_api_session()
 
@@ -172,7 +187,11 @@ async def validate_and_download_media(mention: MentionData) -> ScanRequest | Non
 async def scan_media(request: ScanRequest) -> dict | None:
     media_type = "video" if request.content_type == 1 else "photo"
 
-    if request.content_type == 0 and request.quantity is not None and request.quantity > 1:
+    if (
+        request.content_type == 0
+        and request.quantity is not None
+        and request.quantity > 1
+    ):
         logger.info("dtkt-slideshow-skipped", vid=request.vid, q=request.quantity)
         return None
 

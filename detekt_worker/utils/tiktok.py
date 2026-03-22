@@ -88,7 +88,12 @@ def extract_slideshow_image_urls(aweme: dict) -> list[str]:
 
     urls = []
     for img in images:
-        thumbnail = img.get("thumbnail") or img.get("display_image") or img.get("owner_watermark_image") or {}
+        thumbnail = (
+            img.get("thumbnail")
+            or img.get("display_image")
+            or img.get("owner_watermark_image")
+            or {}
+        )
         url_list = thumbnail.get("url_list", [])
         if url_list:
             urls.append(url_list[0])
