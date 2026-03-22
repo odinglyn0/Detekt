@@ -1,9 +1,9 @@
-resource "google_compute_instance" "dtkt_poller" {
-  name         = "dtkt-poller"
+resource "google_compute_instance" "dtkt_worker" {
+  name         = "dtkt-worker"
   machine_type = var.dtkt_vm_machine_type
   zone         = var.dtkt_gcp_zone
 
-  tags = ["dtkt-poller"]
+  tags = ["dtkt-worker"]
 
   boot_disk {
     initialize_params {
@@ -20,7 +20,7 @@ resource "google_compute_instance" "dtkt_poller" {
   }
 
   service_account {
-    email  = google_service_account.dtkt_poller.email
+    email  = google_service_account.dtkt_worker.email
     scopes = ["cloud-platform"]
   }
 
@@ -28,8 +28,8 @@ resource "google_compute_instance" "dtkt_poller" {
     gce-container-declaration = yamlencode({
       spec = {
         containers = [{
-          image = local.dtkt_poller_image
-          name  = "dtkt-poller"
+          image = local.dtkt_worker_image
+          name  = "dtkt-worker"
           env = [
             {
               name  = "DOPPLER_TOKEN"
@@ -40,24 +40,24 @@ resource "google_compute_instance" "dtkt_poller" {
               value = var.dtkt_gcp_project
             },
             {
-              name  = "DTKT_PUBSUB_TOPIC"
-              value = var.dtkt_pubsub_topic
-            },
-            {
               name  = "DTKT_BUCKET_NAME"
               value = google_storage_bucket.dtkt_media.name
             },
             {
-              name  = "DTKT_FIRESTORE_COMMENTS_COLLECTION"
-              value = var.dtkt_firestore_comments_collection
+              name  = "DTKT_FIRESTORE_SCANS_COLLECTION"
+              value = var.dtkt_firestore_scans_collection
             },
             {
-              name  = "DTKT_FIRESTORE_CIRCUIT_COLLECTION"
-              value = var.dtkt_firestore_circuit_collection
+              name  = "DTKT_TEMPORAL_HOST"
+              value = var.dtkt_temporal_host
             },
             {
-              name  = "DTKT_FIRESTORE_CIRCUIT_DOC"
-              value = var.dtkt_firestore_circuit_doc
+              name  = "DTKT_TEMPORAL_NAMESPACE"
+              value = var.dtkt_temporal_namespace
+            },
+            {
+              name  = "DTKT_TEMPORAL_API_KEY"
+              value = var.dtkt_temporal_api_key
             },
           ]
         }]
@@ -75,7 +75,7 @@ resource "google_compute_instance" "dtkt_poller" {
   allow_stopping_for_update = true
 
   labels = {
-    dtkt-app = "poller"
+    dtkt-app = "worker"
     dtkt-env = "prod"
   }
 }

@@ -15,43 +15,35 @@ provider "google" {
 }
 
 locals {
-  dtkt_poller_image  = var.dtkt_docker_image != "" ? var.dtkt_docker_image : "gcr.io/${var.dtkt_gcp_project}/dtkt-poller:latest"
-  dtkt_scanner_image = var.dtkt_scanner_docker_image != "" ? var.dtkt_scanner_docker_image : "gcr.io/${var.dtkt_gcp_project}/dtkt-scanner:latest"
+  dtkt_worker_image = var.dtkt_worker_docker_image != "" ? var.dtkt_worker_docker_image : "gcr.io/${var.dtkt_gcp_project}/dtkt-worker:latest"
 }
 
-resource "google_pubsub_topic" "dtkt_mentions" {
-  name = var.dtkt_pubsub_topic
-
-  message_retention_duration = "604800s"
+resource "google_service_account" "dtkt_worker" {
+  account_id   = "dtkt-worker"
+  display_name = "detekt worker service account"
 }
 
-resource "google_service_account" "dtkt_poller" {
-  account_id   = "dtkt-poller"
-  display_name = "detekt poller service account"
-}
-
-resource "google_project_iam_member" "dtkt_poller_pubsub" {
-  project = var.dtkt_gcp_project
-  role    = "roles/pubsub.publisher"
-  member  = "serviceAccount:${google_service_account.dtkt_poller.email}"
-}
-
-resource "google_project_iam_member" "dtkt_poller_storage" {
+resource "google_project_iam_member" "dtkt_worker_storage_admin" {
   project = var.dtkt_gcp_project
   role    = "roles/storage.objectAdmin"
-  member  = "serviceAccount:${google_service_account.dtkt_poller.email}"
+  member  = "serviceAccount:${google_service_account.dtkt_worker.email}"
 }
 
-data "google_project" "dtkt_current" {}
-
-resource "google_pubsub_topic_iam_member" "dtkt_dlq_publisher" {
-  topic  = google_pubsub_topic.dtkt_mentions_dlq.name
-  role   = "roles/pubsub.publisher"
-  member = "serviceAccount:service-${data.google_project.dtkt_current.number}@gcp-sa-pubsub.iam.gserviceaccount.com"
+resource "google_project_iam_member" "dtkt_worker_firestore" {
+  project = var.dtkt_gcp_project
+  role    = "roles/datastore.user"
+  member  = "serviceAccount:${google_service_account.dtkt_worker.email}"
 }
 
-resource "google_pubsub_subscription_iam_member" "dtkt_scanner_sub_subscriber" {
-  subscription = google_pubsub_subscription.dtkt_scanner.name
-  role         = "roles/pubsub.subscriber"
-  member       = "serviceAccount:service-${data.google_project.dtkt_current.number}@gcp-sa-pubsub.iam.gserviceaccount.com"
+resource "google_project_iam_member" "dtkt_worker_token_creator" {
+  project = var.dtkt_gcp_project
+  role    = "roles/iam.serviceAccountTokenCreator"
+  member  = "serviceAccount:${google_service_account.dtkt_worker.email}"
+}
+
+resource "google_firestore_database" "dtkt_default" {
+  project     = var.dtkt_gcp_project
+  name        = "(default)"
+  location_id = var.dtkt_gcp_region
+  type        = "FIRESTORE_NATIVE"
 }

@@ -1,3 +1,4 @@
+import datetime
 import mimetypes
 import os
 from urllib.parse import urlparse
@@ -72,3 +73,32 @@ def upload_slideshow_images(video_id: str, image_urls: list[str]) -> tuple[list[
     quantity = len(paths)
     logger.info("dtkt-slideshow-uploaded", video_id=video_id, count=quantity)
     return paths, quantity
+
+
+def get_signed_url(blob_path: str, expiry_minutes: int = 30) -> str:
+    bucket = _get_bucket()
+    blob = bucket.blob(blob_path)
+    url = blob.generate_signed_url(
+        version="v4",
+        expiration=datetime.timedelta(minutes=expiry_minutes),
+        method="GET",
+    )
+    return url
+
+
+def get_video_blob_path(vid: str) -> str | None:
+    bucket = _get_bucket()
+    prefix = f"vids/{vid}/"
+    blobs = list(bucket.list_blobs(prefix=prefix, max_results=1))
+    if blobs:
+        return blobs[0].name
+    return None
+
+
+def get_photo_blob_path(vid: str) -> str | None:
+    bucket = _get_bucket()
+    prefix = f"pics/{vid}/"
+    blobs = list(bucket.list_blobs(prefix=prefix, max_results=1))
+    if blobs:
+        return blobs[0].name
+    return None

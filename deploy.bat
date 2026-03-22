@@ -21,28 +21,23 @@ if "%DTKT_DOPPLER_TOKEN%"=="" (
     echo ERROR: DTKT_DOPPLER_TOKEN not set in .env
     exit /b 1
 )
-if "%DTKT_SCANNER_DOPPLER_TOKEN%"=="" (
-    echo ERROR: DTKT_SCANNER_DOPPLER_TOKEN not set in .env
+if "%DTKT_TEMPORAL_HOST%"=="" (
+    echo ERROR: DTKT_TEMPORAL_HOST not set in .env
+    exit /b 1
+)
+if "%DTKT_TEMPORAL_API_KEY%"=="" (
+    echo ERROR: DTKT_TEMPORAL_API_KEY not set in .env
     exit /b 1
 )
 
-set "DTKT_POLLER_IMAGE=gcr.io/%DTKT_GCP_PROJECT%/dtkt-poller:latest"
-set "DTKT_SCANNER_IMAGE=gcr.io/%DTKT_GCP_PROJECT%/dtkt-scanner:latest"
+set "DTKT_WORKER_IMAGE=gcr.io/%DTKT_GCP_PROJECT%/dtkt-worker:latest"
 
-echo === Building poller image ===
-docker build -t %DTKT_POLLER_IMAGE% detekt_poller\
+echo === Building worker image ===
+docker build -t %DTKT_WORKER_IMAGE% detekt_worker\
 if errorlevel 1 exit /b 1
 
-echo === Building scanner image ===
-docker build -t %DTKT_SCANNER_IMAGE% detekt_scanner\
-if errorlevel 1 exit /b 1
-
-echo === Pushing poller image ===
-docker push %DTKT_POLLER_IMAGE%
-if errorlevel 1 exit /b 1
-
-echo === Pushing scanner image ===
-docker push %DTKT_SCANNER_IMAGE%
+echo === Pushing worker image ===
+docker push %DTKT_WORKER_IMAGE%
 if errorlevel 1 exit /b 1
 
 echo === Running terraform ===
@@ -53,7 +48,8 @@ terraform init
 terraform apply ^
     -var="dtkt_gcp_project=%DTKT_GCP_PROJECT%" ^
     -var="dtkt_doppler_token=%DTKT_DOPPLER_TOKEN%" ^
-    -var="dtkt_scanner_doppler_token=%DTKT_SCANNER_DOPPLER_TOKEN%" ^
+    -var="dtkt_temporal_host=%DTKT_TEMPORAL_HOST%" ^
+    -var="dtkt_temporal_api_key=%DTKT_TEMPORAL_API_KEY%" ^
     -auto-approve
 
 if errorlevel 1 (

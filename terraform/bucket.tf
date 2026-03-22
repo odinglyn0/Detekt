@@ -15,7 +15,7 @@ resource "google_storage_bucket" "dtkt_media" {
   }
 
   labels = {
-    dtkt-app = "poller"
+    dtkt-app = "worker"
     dtkt-env = "prod"
   }
 }

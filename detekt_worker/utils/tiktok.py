@@ -1,3 +1,5 @@
+import asyncio
+
 from TikTokApi import TikTokApi
 import structlog
 
@@ -28,6 +30,16 @@ async def create_api_session() -> TikTokApi:
     )
     logger.info("dtkt-tiktok-session-created")
     return _api
+
+
+async def close_api_session() -> None:
+    global _api
+    if _api is not None:
+        try:
+            await _api.close_sessions()
+        except Exception:
+            pass
+        _api = None
 
 
 async def poll_mentions() -> list:
@@ -82,3 +94,26 @@ def extract_slideshow_image_urls(aweme: dict) -> list[str]:
             urls.append(url_list[0])
 
     return urls
+
+
+async def reply_to_comment(vid: str, cid: str, username: str, result_text: str) -> None:
+    if _api is None:
+        await create_api_session()
+    text = f"@{username} - {result_text}"
+    await _api.comment.post(
+        video_id=vid,
+        text=text,
+        reply_comment_id=cid,
+    )
+    logger.info("dtkt-reply-posted", vid=vid, cid=cid, text=text)
+
+
+def reply_sync(vid: str, cid: str, username: str, result_text: str) -> None:
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            asyncio.ensure_future(reply_to_comment(vid, cid, username, result_text))
+        else:
+            loop.run_until_complete(reply_to_comment(vid, cid, username, result_text))
+    except RuntimeError:
+        asyncio.run(reply_to_comment(vid, cid, username, result_text))

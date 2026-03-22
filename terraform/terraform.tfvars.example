@@ -1,3 +1,5 @@
-dtkt_gcp_project                     = "your-gcp-project-id"
-dtkt_doppler_token                   = "dp.st.poller_xxxx"
-dtkt_scanner_doppler_token           = "dp.st.scanner_xxxx"
+dtkt_gcp_project        = "your-gcp-project-id"
+dtkt_doppler_token      = "dp.st.worker_xxxx"
+dtkt_temporal_host      = "your-namespace.tmprl.cloud:7233"
+dtkt_temporal_namespace = "default"
+dtkt_temporal_api_key   = "your-temporal-api-key"

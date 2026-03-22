@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/playwright:v1.52.0-noble
+FROM python:3.12-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl gnupg apt-transport-https ca-certificates && \
@@ -14,8 +14,8 @@ WORKDIR /app
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-RUN python -m playwright install chromium
+RUN playwright install chromium --with-deps
 
 COPY . .
 
-CMD ["doppler", "run", "--", "python", "-u", "main.py"]
+CMD ["doppler", "run", "--", "python3", "-u", "main.py"]
