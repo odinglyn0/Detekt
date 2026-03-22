@@ -76,11 +76,14 @@ def _get_client() -> SightengineClient:
 def check_image(image_url: str) -> dict:
     client = _get_client()
     threshold = float(get_secret("DTKT_AI_THRESHOLD"))
-    output = client.check("genai").set_url(image_url)
+    output = client.check("genai,deepfake").set_url(image_url)
     ai_score = output.get("type", {}).get("ai_generated", 0.0)
+    deepfake_score = output.get("type", {}).get("deepfake", 0.0)
     return {
         "dtkt_ai_score": ai_score,
+        "dtkt_deepfake_score": deepfake_score,
         "dtkt_is_ai": ai_score > threshold,
+        "dtkt_is_deepfake": deepfake_score > threshold,
         "dtkt_raw": output,
     }
 
@@ -88,35 +91,44 @@ def check_image(image_url: str) -> dict:
 def check_video(video_url: str) -> dict:
     client = _get_client()
     threshold = float(get_secret("DTKT_AI_THRESHOLD"))
-    output = client.check("genai").video_sync(video_url)
+    output = client.check("genai,deepfake").video_sync(video_url)
 
     frames = output.get("data", {}).get("frames", [])
     if not frames:
         return {
             "dtkt_ai_score": 0.0,
+            "dtkt_deepfake_score": 0.0,
             "dtkt_is_ai": False,
+            "dtkt_is_deepfake": False,
             "dtkt_raw": output,
         }
 
-    scores = [f.get("type", {}).get("ai_generated", 0.0) for f in frames]
-    avg_score = sum(scores) / len(scores)
+    ai_scores = [f.get("type", {}).get("ai_generated", 0.0) for f in frames]
+    deepfake_scores = [f.get("type", {}).get("deepfake", 0.0) for f in frames]
+    avg_ai = sum(ai_scores) / len(ai_scores)
+    avg_deepfake = sum(deepfake_scores) / len(deepfake_scores)
 
     return {
-        "dtkt_ai_score": avg_score,
-        "dtkt_is_ai": avg_score > threshold,
+        "dtkt_ai_score": avg_ai,
+        "dtkt_deepfake_score": avg_deepfake,
+        "dtkt_is_ai": avg_ai > threshold,
+        "dtkt_is_deepfake": avg_deepfake > threshold,
         "dtkt_raw": output,
     }
 
 
-def format_result(tagger: str, media_type: str, is_ai: bool, ai_score: float) -> str:
+def format_result(
+    tagger: str,
+    media_type: str,
+    is_ai: bool,
+    ai_score: float,
+    is_deepfake: bool,
+    deepfake_score: float,
+) -> str:
     type_label = "photo" if media_type == "photo" else "video"
-    header = f"@{tagger} - the {type_label}"
-
     if is_ai:
-        verdict = "was AI generated!"
+        return f"@{tagger} - the {type_label} is AI generated {ai_score*100:.0f}% sure."
+    elif is_deepfake:
+        return f"@{tagger} - the {type_label} is a deepfake {deepfake_score*100:.0f}% sure."
     else:
-        verdict = "wasn't AI generated!"
-
-    confidence = f"The algo was {ai_score * 100:.0f}% confident."
-
-    return f"{header} {verdict} {confidence}"
+        return f"@{tagger} - the {type_label} looks real {ai_score*100:.0f}% sure."

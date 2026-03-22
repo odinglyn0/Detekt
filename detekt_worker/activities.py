@@ -181,6 +181,8 @@ async def scan_media(request: ScanRequest) -> dict | None:
         return {
             "dtkt_ai_score": cached["dtkt_ai_score"],
             "dtkt_is_ai": cached["dtkt_is_ai"],
+            "dtkt_deepfake_score": cached.get("dtkt_deepfake_score", 0.0),
+            "dtkt_is_deepfake": cached.get("dtkt_is_deepfake", False),
             "media_type": media_type,
         }
 
@@ -204,6 +206,8 @@ async def scan_media(request: ScanRequest) -> dict | None:
         media_type=media_type,
         ai_score=scan["dtkt_ai_score"],
         is_ai=scan["dtkt_is_ai"],
+        deepfake_score=scan["dtkt_deepfake_score"],
+        is_deepfake=scan["dtkt_is_deepfake"],
         vid=request.vid,
         cid=request.cid,
         username=request.username,
@@ -214,6 +218,8 @@ async def scan_media(request: ScanRequest) -> dict | None:
     return {
         "dtkt_ai_score": scan["dtkt_ai_score"],
         "dtkt_is_ai": scan["dtkt_is_ai"],
+        "dtkt_deepfake_score": scan["dtkt_deepfake_score"],
+        "dtkt_is_deepfake": scan["dtkt_is_deepfake"],
         "media_type": media_type,
     }
 
@@ -225,6 +231,8 @@ async def reply_with_result(request: ScanRequest, result: dict) -> None:
         media_type=result["media_type"],
         is_ai=result["dtkt_is_ai"],
         ai_score=result["dtkt_ai_score"],
+        is_deepfake=result["dtkt_is_deepfake"],
+        deepfake_score=result["dtkt_deepfake_score"],
     )
     try:
         await reply_to_comment(request.vid, request.cid, request.username, result_text)
