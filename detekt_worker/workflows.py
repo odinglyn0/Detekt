@@ -1,7 +1,7 @@
 from datetime import timedelta
 
 from temporalio import workflow
-from temporalio.common import RetryPolicy, WorkflowIDConflictPolicy
+from temporalio.common import RetryPolicy, WorkflowIDReusePolicy
 
 with workflow.unsafe.imports_passed_through():
     from activities import (
@@ -85,7 +85,7 @@ class PollerWorkflow:
                     ProcessMentionWorkflow.run,
                     mention,
                     id=f"dtkt-mention-{mention.aweme_id}-{mention.comment_id}",
-                    id_conflict_policy=WorkflowIDConflictPolicy.USE_EXISTING,
+                    id_reuse_policy=WorkflowIDReusePolicy.ALLOW_DUPLICATE,
                 )
 
             await workflow.sleep(timedelta(seconds=poll_interval_seconds))
