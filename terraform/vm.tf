@@ -26,6 +26,11 @@ resource "google_compute_instance" "dtkt_worker" {
 
   metadata = {
     gce-container-declaration = yamlencode({
+      apiVersion = "v1"
+      kind       = "Pod"
+      metadata = {
+        name = "dtkt-worker"
+      }
       spec = {
         containers = [{
           image = local.dtkt_worker_image

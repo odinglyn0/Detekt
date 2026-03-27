@@ -3,6 +3,7 @@ import json
 
 import sentry_sdk
 from TikTokApi import TikTokApi
+from tikapi import TikAPI, ResponseException
 import structlog
 
 from proxyproviders.algorithms import Random
@@ -37,7 +38,6 @@ async def ensure_session() -> TikTokApi:
     try:
         _api = TikTokApi()
         await _api.create_sessions(
-            ms_tokens=[get_secret("DTKT_MS_TOKEN")],
             num_sessions=1,
             sleep_after=3,
             headless=True,
@@ -55,18 +55,6 @@ async def ensure_session() -> TikTokApi:
                 {
                     "name": "tt_csrf_token",
                     "value": get_secret("DTKT_TT_CSRF_TOKEN"),
-                    "domain": ".tiktok.com",
-                    "path": "/",
-                },
-                {
-                    "name": "s_v_web_id",
-                    "value": get_secret("DTKT_TT_S_V_WEB_ID"),
-                    "domain": ".tiktok.com",
-                    "path": "/",
-                },
-                {
-                    "name": "msToken",
-                    "value": get_secret("DTKT_MS_TOKEN"),
                     "domain": ".tiktok.com",
                     "path": "/",
                 },
@@ -236,34 +224,44 @@ def extract_slideshow_image_urls(aweme: dict) -> list[str]:
     return urls
 
 
+def _get_tikapi_user():
+    api = TikAPI(get_secret("DTKT_TIKAPI_KEY"))
+    return api.user(accountKey=get_secret("DTKT_TIKAPI_ACCOUNT_KEY"))
+
+
 async def reply_to_comment(
     vid: str, cid: str, username: str, result_text: str, reply_type: str = "2"
 ) -> dict | None:
-    safe_text = json.dumps(f"@{username} {result_text}")
-    safe_vid = json.dumps(vid)
-    safe_cid = json.dumps(cid)
-    safe_reply_type = json.dumps(reply_type)
+    text = f"@{username} {result_text}"
 
     for attempt in range(MAX_SESSION_RETRIES + 1):
-        api = await ensure_session()
         try:
-            result = await api._sessions[0].page.evaluate(
-                f"""async () => {{
-                    const body = new URLSearchParams({{
-                        aweme_id: {safe_vid},
-                        text: {safe_text},
-                        reply_id: {safe_cid},
-                        reply_type: {safe_reply_type}
-                    }});
-                    const response = await fetch(
-                        "https://www.tiktok.com/api/comment/publish/",
-                        {{ method: "POST", body: body }}
-                    );
-                    return await response.json();
-                }}"""
+            user = _get_tikapi_user()
+            response = await asyncio.to_thread(
+                user.posts.comments.post,
+                media_id=vid,
+                text=text,
+                reply_comment_id=cid,
+                has_tags=True,
             )
+            result = response.json()
             logger.info("dtkt-reply-posted", vid=vid, cid=cid, result=result)
             return result
+        except ResponseException as exc:
+            if attempt < MAX_SESSION_RETRIES:
+                logger.warning(
+                    "dtkt-reply-retrying",
+                    vid=vid,
+                    cid=cid,
+                    attempt=attempt + 1,
+                    error=str(exc),
+                    status=exc.response.status_code,
+                )
+                _report(exc)
+            else:
+                _report(exc)
+                logger.error("dtkt-reply-failed", vid=vid, cid=cid, error=str(exc))
+                return None
         except Exception as exc:
             if attempt < MAX_SESSION_RETRIES:
                 logger.warning(
@@ -274,7 +272,6 @@ async def reply_to_comment(
                     error=str(exc),
                 )
                 _report(exc)
-                await recreate_session()
             else:
                 _report(exc)
                 logger.error("dtkt-reply-failed", vid=vid, cid=cid, error=str(exc))
