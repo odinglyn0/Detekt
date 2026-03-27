@@ -1,5 +1,6 @@
 import asyncio
 import json
+import time
 
 import sentry_sdk
 from TikTokApi import TikTokApi
@@ -15,9 +16,11 @@ logger = structlog.get_logger()
 
 _api: TikTokApi | None = None
 _last_min_time: int = 0
+_session_created_at: float = 0
 
-MAX_SESSION_RETRIES = 2
+MAX_SESSION_RETRIES = 100
 SENTRY_FLUSH_TIMEOUT = 2
+SESSION_MAX_AGE_SECONDS = 45 * 60
 
 
 def _report(exc: Exception) -> None:
@@ -30,49 +33,73 @@ def _get_supported_types() -> set[int]:
     return {int(x.strip()) for x in raw.split(",") if x.strip()}
 
 
-async def ensure_session() -> TikTokApi:
-    global _api
-    if _api is not None:
-        return _api
+async def _extract_ms_token(api: TikTokApi) -> str | None:
+    try:
+        for session in api.sessions:
+            cookies = await session.context.cookies()
+            for cookie in cookies:
+                if cookie.get("name") == "msToken" and cookie.get("value"):
+                    return cookie["value"]
+    except Exception as exc:
+        logger.warning("dtkt-ms-token-extract-failed", error=str(exc))
+    return None
+
+
+async def ensure_session(force_fresh: bool = False) -> TikTokApi:
+    global _api, _session_created_at
+
+    if _api is not None and not force_fresh:
+        age = time.monotonic() - _session_created_at
+        if age < SESSION_MAX_AGE_SECONDS:
+            return _api
+        logger.info("dtkt-session-stale-rotating", age_seconds=int(age))
+        await close_session()
 
     try:
         _api = TikTokApi()
-        await _api.create_sessions(
-            num_sessions=1,
-            sleep_after=3,
-            headless=True,
-            browser="webkit",
-            suppress_resource_load_types=["image", "media", "font", "stylesheet"],
-            proxy_provider=get_proxy_provider(),
-            proxy_algorithm=Random(),
-            cookies=[
+
+        async def _page_factory(context):
+            await context.add_cookies([
                 {
                     "name": "sessionid",
                     "value": get_secret("DTKT_TT_SESSIONID"),
                     "domain": ".tiktok.com",
                     "path": "/",
-                },
-                {
-                    "name": "tt_csrf_token",
-                    "value": get_secret("DTKT_TT_CSRF_TOKEN"),
-                    "domain": ".tiktok.com",
-                    "path": "/",
-                },
-            ],
+                    "secure": True,
+                    "httpOnly": True,
+                    "sameSite": "None",
+                }
+            ])
+            page = await context.new_page()
+            await page.goto("https://www.tiktok.com", wait_until="domcontentloaded")
+            for _ in range(20):
+                cookies = await context.cookies()
+                if any(c["name"] == "msToken" and c.get("value") for c in cookies):
+                    break
+                await asyncio.sleep(0.5)
+            return page
+
+        await _api.create_sessions(
+            num_sessions=1,
+            sleep_after=3,
+            browser="chromium",
+            headless=True,
+            page_factory=_page_factory,
         )
+        _session_created_at = time.monotonic()
+        token = await _extract_ms_token(_api)
+        logger.info("dtkt-tiktok-session-created", has_token=token is not None)
     except Exception as exc:
         _api = None
         _report(exc)
         logger.error("dtkt-session-create-failed", error=str(exc))
         raise
 
-    logger.info("dtkt-tiktok-session-created")
     return _api
 
 
 async def recreate_session() -> TikTokApi:
-    await close_session()
-    return await ensure_session()
+    return await ensure_session(force_fresh=True)
 
 
 async def close_session() -> None:
@@ -80,6 +107,10 @@ async def close_session() -> None:
     if _api is not None:
         try:
             await _api.close_sessions()
+        except Exception:
+            pass
+        try:
+            await _api.stop_playwright()
         except Exception:
             pass
         _api = None
@@ -111,6 +142,15 @@ async def poll_mentions() -> list[dict]:
                     ),
                 },
             )
+            status = data.get("status_code", 0)
+            if status in (3102, 3006, 8):
+                if attempt < MAX_SESSION_RETRIES:
+                    logger.warning("dtkt-login-expired-retrying", status=status, attempt=attempt + 1)
+                    await recreate_session()
+                    continue
+                else:
+                    logger.error("dtkt-login-expired-exhausted", status=status)
+                    return []
             break
         except Exception as exc:
             if attempt < MAX_SESSION_RETRIES:
