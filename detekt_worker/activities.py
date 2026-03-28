@@ -14,10 +14,12 @@ from utils.tiktok import (
     get_video_info,
     extract_video_download_url,
     extract_slideshow_image_urls,
+    download_video_bytes,
     recreate_session,
 )
 from utils.storage import (
     upload_video,
+    upload_video_bytes,
     upload_slideshow_images,
     get_signed_url,
     get_video_blob_path,
@@ -145,25 +147,14 @@ async def validate_and_download_media(mention: MentionData) -> ScanRequest | Non
         content_type=content_type,
     )
 
-    video_url = mention.video_url
-    image_urls = mention.image_urls
+    image_urls = None
 
-    if content_type == 1 and not video_url:
-        aweme = await get_video_info(mention.aweme_id)
-        if aweme:
-            video_url = extract_video_download_url(aweme)
-            logger.info(
-                "dtkt-fallback-video-url",
-                vid=mention.aweme_id,
-                found=video_url is not None,
-            )
-
-    if content_type == 0 and not image_urls:
+    if content_type == 0:
         aweme = await get_video_info(mention.aweme_id)
         if aweme:
             image_urls = extract_slideshow_image_urls(aweme)
             logger.info(
-                "dtkt-fallback-image-urls",
+                "dtkt-fresh-image-urls",
                 vid=mention.aweme_id,
                 count=len(image_urls) if image_urls else 0,
                 has_image_post_info="image_post_info" in aweme,
@@ -176,10 +167,11 @@ async def validate_and_download_media(mention: MentionData) -> ScanRequest | Non
     uploaded_indices = None
     try:
         if content_type == 1:
-            if video_url:
-                await upload_video(mention.aweme_id, video_url)
+            video_bytes = await download_video_bytes(mention.aweme_id)
+            if video_bytes:
+                await upload_video_bytes(mention.aweme_id, video_bytes)
             else:
-                logger.warning("dtkt-no-video-url", vid=mention.aweme_id)
+                logger.warning("dtkt-no-video-bytes", vid=mention.aweme_id)
                 return None
         else:
             if image_urls:

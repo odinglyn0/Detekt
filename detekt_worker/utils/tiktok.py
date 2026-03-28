@@ -93,9 +93,18 @@ async def ensure_session(force_fresh: bool = False) -> TikTokApi:
                     await asyncio.sleep(0.5)
                 return page
 
-            pw_proxy = get_secret_optional("DTKT_PROXY") or None
-            if pw_proxy:
-                logger.info("dtkt-session-using-proxy", proxy=pw_proxy)
+            raw_proxy = get_secret_optional("DTKT_PROXY") or None
+            proxies = None
+            if raw_proxy:
+                from urllib.parse import urlparse
+                parsed = urlparse(raw_proxy)
+                proxy_dict = {"server": f"{parsed.scheme}://{parsed.hostname}:{parsed.port}"}
+                if parsed.username:
+                    proxy_dict["username"] = parsed.username
+                if parsed.password:
+                    proxy_dict["password"] = parsed.password
+                proxies = [proxy_dict]
+                logger.info("dtkt-session-using-proxy", server=proxy_dict["server"])
 
             await _api.create_sessions(
                 num_sessions=1,
@@ -103,7 +112,8 @@ async def ensure_session(force_fresh: bool = False) -> TikTokApi:
                 browser="chromium",
                 headless=True,
                 page_factory=_page_factory,
-                proxy=pw_proxy,
+                proxies=proxies,
+                timeout=60000,
             )
             _session_created_at = time.monotonic()
             token = await _extract_ms_token(_api)
@@ -369,3 +379,35 @@ def extract_slideshow_image_urls(aweme: dict) -> list[str]:
             sample_keys=list(images[0].keys()) if images else [],
         )
     return urls
+
+async def download_video_bytes(video_id: str) -> bytes | None:
+    from tiktokdl.download_post import get_post, TikTokVideo
+    import os
+
+    proxy_url = get_secret_optional("DTKT_PROXY") or None
+    proxy = None
+    if proxy_url:
+        from urllib.parse import urlparse
+        parsed = urlparse(proxy_url)
+        proxy = {"server": f"{parsed.scheme}://{parsed.hostname}:{parsed.port}"}
+        if parsed.username:
+            proxy["username"] = parsed.username
+        if parsed.password:
+            proxy["password"] = parsed.password
+
+    url = f"https://www.tiktok.com/@_/video/{video_id}"
+    try:
+        result = await get_post(url, download=True, proxy=proxy, headless=True)
+        if not isinstance(result, TikTokVideo) or not result.file_path:
+            logger.warning("dtkt-video-download-not-video", vid=video_id)
+            return None
+        with open(result.file_path, "rb") as f:
+            data = f.read()
+        os.remove(result.file_path)
+        logger.info("dtkt-video-downloaded", vid=video_id, size=len(data))
+        return data
+    except Exception as exc:
+        _report(exc)
+        logger.warning("dtkt-video-download-error", vid=video_id, error=str(exc))
+        return None
+

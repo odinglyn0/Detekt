@@ -10,3 +10,4 @@ httpx[socks]>=0.27.0
 structlog>=24.0.0
 sentry-sdk>=2.0.0
 temporalio>=1.24.0
+tiktok-dlpy>=2.2.0

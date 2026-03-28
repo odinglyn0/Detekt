@@ -84,6 +84,15 @@ async def upload_video(
     return blob_path
 
 
+async def upload_video_bytes(video_id: str, data: bytes) -> str:
+    bucket = _get_bucket()
+    blob_path = f"vids/{video_id}/video.mp4"
+    blob = bucket.blob(blob_path)
+    await asyncio.to_thread(blob.upload_from_string, data, "video/mp4")
+    logger.info("dtkt-video-uploaded", path=blob_path, size=len(data))
+    return blob_path
+
+
 async def upload_slideshow_images(
     video_id: str, image_urls: list[str]
 ) -> tuple[list[str], int, list[int]]:
