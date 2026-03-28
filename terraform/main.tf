@@ -55,7 +55,7 @@ resource "google_project_iam_member" "dtkt_worker_logging" {
 
 resource "google_firestore_database" "dtkt_default" {
   project     = var.dtkt_gcp_project
-  name        = "(default)"
+  name        = "dtkt-datastore"
   location_id = var.dtkt_gcp_region
   type        = "FIRESTORE_NATIVE"
 }

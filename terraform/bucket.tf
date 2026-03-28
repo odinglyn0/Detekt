@@ -1,5 +1,5 @@
 resource "google_storage_bucket" "dtkt_media" {
-  name          = "${var.dtkt_bucket_name}-${var.dtkt_gcp_project}"
+  name          = "${var.dtkt_bucket_name}"
   location      = var.dtkt_gcp_region
   force_destroy = true
 
