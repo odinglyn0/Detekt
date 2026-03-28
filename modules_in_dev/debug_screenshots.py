@@ -26,13 +26,17 @@ class DebugScreenshots:
             while True:
                 self._counter += 1
                 filename = f"{self._counter}.png"
-                gcs_path = f"{GCS_DBG_SC_PATH}/{self._prefix}/{filename}".replace("//", "/")
+                gcs_path = f"{GCS_DBG_SC_PATH}/{self._prefix}/{filename}".replace(
+                    "//", "/"
+                )
                 try:
                     screenshot = await self._page.screenshot(type="png")
                     blob = bucket.blob(gcs_path)
                     blob.upload_from_string(screenshot, content_type="image/png")
                 except Exception as exc:
-                    logger.warning("dbg-screenshot-failed", error=str(exc), counter=self._counter)
+                    logger.warning(
+                        "dbg-screenshot-failed", error=str(exc), counter=self._counter
+                    )
                 await asyncio.sleep(0.5)
         except asyncio.CancelledError:
             pass

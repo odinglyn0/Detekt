@@ -17,7 +17,9 @@ async def create_client() -> Client:
 
 async def run_worker():
     client = await create_client()
-    logger.info("temporal-connected", address=TEMPORAL_ADDRESS, namespace=TEMPORAL_NAMESPACE)
+    logger.info(
+        "temporal-connected", address=TEMPORAL_ADDRESS, namespace=TEMPORAL_NAMESPACE
+    )
     worker = Worker(
         client,
         task_queue=TASK_QUEUE,

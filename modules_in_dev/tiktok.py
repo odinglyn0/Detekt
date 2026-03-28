@@ -1,6 +1,13 @@
 import asyncio
 import base64
-from browser import get_page, reboot_session, check_status8, needs_reboot, _lock, SessionRebootError
+from browser import (
+    get_page,
+    reboot_session,
+    check_status8,
+    needs_reboot,
+    _lock,
+    SessionRebootError,
+)
 from debug_screenshots import DebugScreenshots
 from log import logger
 
@@ -10,7 +17,9 @@ def build_video_url(username: str, aweme_id: str, comment_id: str) -> str:
     return f"https://www.tiktok.com/@{username}/video/{aweme_id}?cid={cid_b64}"
 
 
-async def reply_to_comment(aweme_id: str, comment_id: str, initiator: str, username: str, message: str) -> bool:
+async def reply_to_comment(
+    aweme_id: str, comment_id: str, initiator: str, username: str, message: str
+) -> bool:
     if needs_reboot():
         logger.info("pre-reply-reboot", aweme_id=aweme_id, comment_id=comment_id)
         await reboot_session()
@@ -24,21 +33,32 @@ async def reply_to_comment(aweme_id: str, comment_id: str, initiator: str, usern
         dbg.start()
         try:
             url = build_video_url(username, aweme_id, comment_id)
-            logger.info("reply-start", aweme_id=aweme_id, comment_id=comment_id, initiator=initiator)
+            logger.info(
+                "reply-start",
+                aweme_id=aweme_id,
+                comment_id=comment_id,
+                initiator=initiator,
+            )
 
             for attempt in range(3):
                 await page.goto(url)
                 await page.wait_for_load_state("load")
                 await asyncio.sleep(3)
 
-                trouble = page.locator('text="We\'re having trouble playing this video"')
+                trouble = page.locator(
+                    'text="We\'re having trouble playing this video"'
+                )
                 if await trouble.count() > 0:
-                    logger.warning("video-load-failed", attempt=attempt + 1, aweme_id=aweme_id)
+                    logger.warning(
+                        "video-load-failed", attempt=attempt + 1, aweme_id=aweme_id
+                    )
                     if attempt < 2:
                         await asyncio.sleep(2)
                         continue
                     else:
-                        raise Exception(f"Video failed to load after 3 attempts: {aweme_id}")
+                        raise Exception(
+                            f"Video failed to load after 3 attempts: {aweme_id}"
+                        )
                 break
 
             comment_list = page.locator('[class*="DivCommentListContainer"]')
@@ -52,7 +72,9 @@ async def reply_to_comment(aweme_id: str, comment_id: str, initiator: str, usern
             await reply_btn.click()
             await asyncio.sleep(1)
 
-            reply_editor = page.locator('[class*="DivReplyContainer"] [contenteditable="true"]').first
+            reply_editor = page.locator(
+                '[class*="DivReplyContainer"] [contenteditable="true"]'
+            ).first
             await reply_editor.wait_for(state="visible", timeout=10000)
             await reply_editor.click()
             await page.keyboard.type(message, delay=50)
@@ -74,7 +96,9 @@ async def reply_to_comment(aweme_id: str, comment_id: str, initiator: str, usern
                 await asyncio.wait_for(publish_future, timeout=30)
             except asyncio.TimeoutError:
                 page.remove_listener("response", on_response)
-                logger.warning("publish-timeout", aweme_id=aweme_id, comment_id=comment_id)
+                logger.warning(
+                    "publish-timeout", aweme_id=aweme_id, comment_id=comment_id
+                )
                 return False
 
             page.remove_listener("response", on_response)
@@ -87,7 +111,9 @@ async def reply_to_comment(aweme_id: str, comment_id: str, initiator: str, usern
             await dbg.stop()
 
     if got_status8:
-        logger.warning("post-reply-status8-reboot", aweme_id=aweme_id, comment_id=comment_id)
+        logger.warning(
+            "post-reply-status8-reboot", aweme_id=aweme_id, comment_id=comment_id
+        )
         await reboot_session()
         raise SessionRebootError("status-8 during reply, retrying")
 

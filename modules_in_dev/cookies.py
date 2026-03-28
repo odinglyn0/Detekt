@@ -29,14 +29,16 @@ def parse_netscape_cookies(raw: str) -> list[dict]:
         if len(parts) < 7:
             continue
         domain, _, path, secure, expires, name, value = parts[:7]
-        cookies.append({
-            "name": name,
-            "value": value,
-            "domain": domain,
-            "path": path,
-            "secure": secure.upper() == "TRUE",
-            "expires": int(expires) if int(expires) > 0 else -1,
-        })
+        cookies.append(
+            {
+                "name": name,
+                "value": value,
+                "domain": domain,
+                "path": path,
+                "secure": secure.upper() == "TRUE",
+                "expires": int(expires) if int(expires) > 0 else -1,
+            }
+        )
     return cookies
 
 

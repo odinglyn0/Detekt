@@ -70,7 +70,9 @@ async def upload_video(
     proxy = _get_proxy_url()
     async with httpx.AsyncClient(proxy=proxy) as client:
         if not isinstance(download_url, str):
-            raise ValueError(f"download_url is {type(download_url).__name__}, not str: {str(download_url)[:200]}")
+            raise ValueError(
+                f"download_url is {type(download_url).__name__}, not str: {str(download_url)[:200]}"
+            )
         resp = await client.get(
             download_url, headers=headers or {}, timeout=120, follow_redirects=True
         )
@@ -99,13 +101,24 @@ async def upload_slideshow_images(
     async with httpx.AsyncClient(proxy=proxy) as client:
         for idx, url in enumerate(image_urls, start=1):
             if not isinstance(url, str):
-                logger.warning("dtkt-bad-image-url", video_id=video_id, idx=idx, url_type=type(url).__name__, url_value=str(url)[:200])
+                logger.warning(
+                    "dtkt-bad-image-url",
+                    video_id=video_id,
+                    idx=idx,
+                    url_type=type(url).__name__,
+                    url_value=str(url)[:200],
+                )
                 continue
             try:
                 resp = await client.get(url, timeout=60, follow_redirects=True)
                 resp.raise_for_status()
             except Exception as exc:
-                logger.warning("dtkt-image-download-failed", video_id=video_id, idx=idx, error=str(exc))
+                logger.warning(
+                    "dtkt-image-download-failed",
+                    video_id=video_id,
+                    idx=idx,
+                    error=str(exc),
+                )
                 continue
 
             content_type = resp.headers.get("content-type")
@@ -120,7 +133,12 @@ async def upload_slideshow_images(
             original_indices.append(idx)
 
     quantity = len(paths)
-    logger.info("dtkt-slideshow-uploaded", video_id=video_id, count=quantity, indices=original_indices)
+    logger.info(
+        "dtkt-slideshow-uploaded",
+        video_id=video_id,
+        count=quantity,
+        indices=original_indices,
+    )
     return paths, quantity, original_indices
 
 
@@ -161,7 +179,5 @@ async def get_photo_blob_path(vid: str) -> str | None:
 async def get_all_photo_blob_paths(vid: str) -> list[str]:
     bucket = _get_bucket()
     prefix = f"pics/{vid}/"
-    blobs = await asyncio.to_thread(
-        lambda: list(bucket.list_blobs(prefix=prefix))
-    )
+    blobs = await asyncio.to_thread(lambda: list(bucket.list_blobs(prefix=prefix)))
     return sorted([b.name for b in blobs])

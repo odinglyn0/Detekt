@@ -34,7 +34,9 @@ async def _boot():
         window=(1920, 1080),
     )
     _browser = await _camoufox_cm.__aenter__()
-    _context = _browser.contexts[0] if _browser.contexts else await _browser.new_context()
+    _context = (
+        _browser.contexts[0] if _browser.contexts else await _browser.new_context()
+    )
     cookies = load_cookies()
     await _context.add_cookies(cookies)
     _page = await _context.new_page()
@@ -68,6 +70,7 @@ def _attach_status8_listener(page):
                 f"status-8 detected on POST {response.url}",
                 level="warning",
             )
+
     page.on("response", _on_response)
 
 

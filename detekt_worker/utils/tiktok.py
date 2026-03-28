@@ -243,7 +243,9 @@ async def poll_mentions() -> list[dict]:
                 and (aweme.get("image_post_info") or aweme.get("imagePost"))
             ):
                 mention["media_type"] = "slideshow"
-                image_post = aweme.get("image_post_info") or aweme.get("imagePost") or {}
+                image_post = (
+                    aweme.get("image_post_info") or aweme.get("imagePost") or {}
+                )
                 mention["image_urls"] = []
                 images = image_post.get("images", [])
                 if images:
@@ -330,9 +332,8 @@ def extract_video_download_url(aweme: dict) -> str | None:
         for item in video["playAddr"]:
             if isinstance(item, dict) and item.get("src"):
                 return item["src"]
-    return (
-        _pick_url(video.get("download_addr", {}).get("url_list", []))
-        or _pick_url(video.get("play_addr", {}).get("url_list", []))
+    return _pick_url(video.get("download_addr", {}).get("url_list", [])) or _pick_url(
+        video.get("play_addr", {}).get("url_list", [])
     )
 
 

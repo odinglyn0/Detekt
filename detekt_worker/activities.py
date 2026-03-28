@@ -24,7 +24,12 @@ from utils.storage import (
     get_photo_blob_path,
     get_all_photo_blob_paths,
 )
-from utils.sightengine import check_image, check_video, format_result, format_carousel_result
+from utils.sightengine import (
+    check_image,
+    check_video,
+    format_result,
+    format_carousel_result,
+)
 from utils.firestore import (
     get_cached_result,
     store_scan_result,
@@ -144,7 +149,11 @@ async def validate_and_download_media(mention: MentionData) -> ScanRequest | Non
         aweme = await get_video_info(mention.aweme_id)
         if aweme:
             video_url = extract_video_download_url(aweme)
-            logger.info("dtkt-fallback-video-url", vid=mention.aweme_id, found=video_url is not None)
+            logger.info(
+                "dtkt-fallback-video-url",
+                vid=mention.aweme_id,
+                found=video_url is not None,
+            )
 
     if content_type == 0 and not image_urls:
         aweme = await get_video_info(mention.aweme_id)
@@ -271,24 +280,33 @@ async def scan_media(request: ScanRequest) -> dict | None:
         try:
             signed_url = await get_signed_url(blob_path)
             scan = await asyncio.to_thread(check_image, signed_url)
-            image_results.append({
-                "index": original_idx,
-                "ai_score": scan["dtkt_ai_score"],
-                "is_ai": scan["dtkt_is_ai"],
-                "deepfake_score": scan["dtkt_deepfake_score"],
-                "is_deepfake": scan["dtkt_is_deepfake"],
-            })
+            image_results.append(
+                {
+                    "index": original_idx,
+                    "ai_score": scan["dtkt_ai_score"],
+                    "is_ai": scan["dtkt_is_ai"],
+                    "deepfake_score": scan["dtkt_deepfake_score"],
+                    "is_deepfake": scan["dtkt_is_deepfake"],
+                }
+            )
             all_raw.append(scan["dtkt_raw"])
         except Exception as exc:
-            logger.warning("dtkt-image-scan-failed", vid=request.vid, idx=original_idx, error=str(exc))
-            image_results.append({
-                "index": original_idx,
-                "ai_score": 0.0,
-                "is_ai": False,
-                "deepfake_score": 0.0,
-                "is_deepfake": False,
-                "error": str(exc),
-            })
+            logger.warning(
+                "dtkt-image-scan-failed",
+                vid=request.vid,
+                idx=original_idx,
+                error=str(exc),
+            )
+            image_results.append(
+                {
+                    "index": original_idx,
+                    "ai_score": 0.0,
+                    "is_ai": False,
+                    "deepfake_score": 0.0,
+                    "is_deepfake": False,
+                    "error": str(exc),
+                }
+            )
 
     ai_scores = [r["ai_score"] for r in image_results]
     df_scores = [r["deepfake_score"] for r in image_results]
@@ -318,6 +336,7 @@ async def scan_media(request: ScanRequest) -> dict | None:
         "media_type": media_type,
         "image_results": image_results,
     }
+
 
 _temporal_client: Client | None = None
 
