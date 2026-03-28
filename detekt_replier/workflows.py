@@ -12,7 +12,6 @@ with workflow.unsafe.imports_passed_through():
 class ReplyInput:
     aweme_id: str
     comment_id: str
-    media_type: str
     username: str
     initiator: str
     message: str

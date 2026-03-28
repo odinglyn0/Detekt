@@ -1,7 +1,0 @@
-camoufox[geoip]==0.4.11
-numpy==2.4.3
-temporalio==1.24.0
-google-cloud-storage
-playwright==1.58.0
-sentry-sdk
-structlog
