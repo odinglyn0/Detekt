@@ -30,7 +30,8 @@ async def _boot():
         headless="virtual",
         humanize=True,
         geoip=True,
-        screen=Screen(min_width=1920, min_height=1000, max_width=2100, max_height=1100),
+        os="windows",
+        screen=Screen(min_width=1920, min_height=1080, max_width=1920, max_height=1080),
         window=(1920, 1080),
     )
     _browser = await _camoufox_cm.__aenter__()
@@ -40,6 +41,7 @@ async def _boot():
     cookies = load_cookies()
     await _context.add_cookies(cookies)
     _page = await _context.new_page()
+    await _page.set_viewport_size({"width": 1920, "height": 1080})
     _attach_status8_listener(_page)
     await _page.goto("https://www.tiktok.com/explore")
     await _page.wait_for_load_state("load")

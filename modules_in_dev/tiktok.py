@@ -13,7 +13,7 @@ from log import logger
 
 
 def build_video_url(username: str, aweme_id: str, comment_id: str) -> str:
-    cid_b64 = base64.b64encode(comment_id.encode()).decode()
+    cid_b64 = base64.b64encode(comment_id.encode()).decode().rstrip("=")
     return f"https://www.tiktok.com/@{username}/video/{aweme_id}?cid={cid_b64}"
 
 
@@ -61,22 +61,23 @@ async def reply_to_comment(
                         )
                 break
 
+            tab_bar = page.locator('[class*="DivVideoListTabBarWrapper"], .TUXTabBar')
+            await tab_bar.first.wait_for(state="visible", timeout=15000)
+
             comment_list = page.locator('[class*="DivCommentListContainer"]')
             await comment_list.wait_for(state="visible", timeout=15000)
 
-            first_comment = page.locator('[data-comment-ui-enabled="true"]').first
+            first_comment = comment_list.locator('[class*="DivCommentObjectWrapper"]').first
             await first_comment.wait_for(state="visible", timeout=15000)
 
             reply_btn = first_comment.locator('[data-e2e="comment-reply-1"]')
             await reply_btn.scroll_into_view_if_needed()
-            await reply_btn.click()
+            await reply_btn.click(force=True)
             await asyncio.sleep(1)
 
-            reply_editor = page.locator(
-                '[class*="DivReplyContainer"] [contenteditable="true"]'
-            ).first
-            await reply_editor.wait_for(state="visible", timeout=10000)
-            await reply_editor.click()
+            editor = page.locator('[data-e2e="comment-input"] [contenteditable="true"]').first
+            await editor.wait_for(state="visible", timeout=10000)
+            await editor.click(force=True)
             await page.keyboard.type(message, delay=50)
             await asyncio.sleep(0.5)
 
@@ -89,8 +90,8 @@ async def reply_to_comment(
 
             page.on("response", on_response)
 
-            post_btn = page.locator('[data-e2e="comment-post"]')
-            await post_btn.click()
+            post_btn = page.locator('[data-e2e="comment-post"]').first
+            await post_btn.click(force=True)
 
             try:
                 await asyncio.wait_for(publish_future, timeout=30)
