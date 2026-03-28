@@ -38,6 +38,8 @@ localtests/
 
 .vscode/
 
+test.py
+
 .env
 .envrc
 .venv/

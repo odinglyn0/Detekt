@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 import asyncio
 
-import sentry_sdk
 from temporalio import activity
 from temporalio.exceptions import ApplicationError
 import structlog
@@ -320,6 +319,13 @@ async def scan_media(request: ScanRequest) -> dict | None:
         "image_results": image_results,
     }
 
+_temporal_client: Client | None = None
+
+
+def set_temporal_client(client: Client) -> None:
+    global _temporal_client
+    _temporal_client = client
+
 
 @activity.defn
 async def reply_with_result(request: ScanRequest, result: dict) -> None:
@@ -338,10 +344,24 @@ async def reply_with_result(request: ScanRequest, result: dict) -> None:
             is_deepfake=result["dtkt_is_deepfake"],
             deepfake_score=result["dtkt_deepfake_score"],
         )
-    try:
-        await reply_to_comment(request.vid, request.cid, request.username, result_text)
-    except Exception as exc:
-        sentry_sdk.capture_exception(exc)
-        sentry_sdk.flush(timeout=2)
-        logger.warning("dtkt-reply-error", vid=request.vid, error=str(exc))
-    logger.info("dtkt-result-sent", vid=request.vid, result=result_text)
+
+    if _temporal_client is None:
+        raise RuntimeError("temporal client not initialized")
+
+    reply_queue = get_secret("DTKT_TEMPORAL_TASK_QUEUE")
+
+    await _temporal_client.start_workflow(
+        "dtkt-reply",
+        {
+            "aweme_id": request.vid,
+            "comment_id": request.cid,
+            "media_type": result["media_type"],
+            "username": request.username,
+            "initiator": request.username,
+            "message": result_text,
+        },
+        id=f"dtkt-reply-{request.vid}-{request.cid}",
+        task_queue=reply_queue,
+    )
+
+    logger.info("dtkt-reply-dispatched", vid=request.vid, cid=request.cid)

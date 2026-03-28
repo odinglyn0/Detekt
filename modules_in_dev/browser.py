@@ -37,7 +37,7 @@ async def _boot():
     _page = await _context.new_page()
     _attach_status8_listener(_page)
     await _page.goto("https://www.tiktok.com/explore")
-    await _page.wait_for_load_state("networkidle")
+    await _page.wait_for_load_state("load")
     _started_at = time.monotonic()
     logger.info("camoufox-booted")
 

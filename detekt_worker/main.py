@@ -14,6 +14,7 @@ from activities import (
     scan_media,
     reply_with_result,
     get_poll_interval,
+    set_temporal_client,
 )
 from utils.secrets import get_secret
 from utils.tiktok import ensure_session, close_session
@@ -68,6 +69,8 @@ async def run() -> None:
     client = await Client.connect(**connect_kwargs)
 
     logger.info("dtkt-worker-connected")
+
+    set_temporal_client(client)
 
     await ensure_session()
 

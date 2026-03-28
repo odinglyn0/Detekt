@@ -4,7 +4,6 @@ import time
 
 import sentry_sdk
 from TikTokApi import TikTokApi
-from tikapi import TikAPI, ResponseException
 import structlog
 
 from proxyproviders.algorithms import Random
@@ -366,41 +365,3 @@ def extract_slideshow_image_urls(aweme: dict) -> list[str]:
             sample_keys=list(images[0].keys()) if images else [],
         )
     return urls
-
-
-def _get_tikapi_user():
-    api = TikAPI(get_secret("DTKT_TIKAPI_KEY"))
-    return api.user(accountKey=get_secret("DTKT_TIKAPI_ACCOUNT_KEY"))
-
-
-async def reply_to_comment(
-    vid: str, cid: str, username: str, result_text: str, reply_type: str = "2"
-) -> dict | None:
-    text = f"@{username} {result_text}"
-
-    try:
-        user = _get_tikapi_user()
-        response = await asyncio.to_thread(
-            user.posts.comments.post,
-            media_id=vid,
-            text=text,
-            reply_comment_id=cid,
-            has_tags=True,
-        )
-        result = response.json()
-        logger.info("dtkt-reply-posted", vid=vid, cid=cid, result=result)
-        return result
-    except ResponseException as exc:
-        _report(exc)
-        logger.error(
-            "dtkt-reply-failed",
-            vid=vid,
-            cid=cid,
-            error=str(exc),
-            status=exc.response.status_code,
-        )
-        return None
-    except Exception as exc:
-        _report(exc)
-        logger.error("dtkt-reply-failed", vid=vid, cid=cid, error=str(exc))
-        return None
