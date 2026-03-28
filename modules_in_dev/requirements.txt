@@ -1,0 +1,6 @@
+camoufox[geoip]
+temporalio
+google-cloud-storage
+playwright
+sentry-sdk
+structlog

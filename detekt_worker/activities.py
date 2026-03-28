@@ -7,6 +7,7 @@ from temporalio.exceptions import ApplicationError
 import structlog
 
 from utils.secrets import get_secret
+from temporalio.client import Client
 from utils.tiktok import (
     poll_mentions,
     is_supported_aweme,
@@ -14,7 +15,6 @@ from utils.tiktok import (
     get_video_info,
     extract_video_download_url,
     extract_slideshow_image_urls,
-    reply_to_comment,
     recreate_session,
 )
 from utils.storage import (

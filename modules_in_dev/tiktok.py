@@ -1,0 +1,76 @@
+import asyncio
+import base64
+from browser import get_page, reboot_session, check_status8, needs_reboot, _lock, SessionRebootError
+from log import logger
+
+
+def build_video_url(initiator: str, aweme_id: str, comment_id: str) -> str:
+    cid_b64 = base64.b64encode(comment_id.encode()).decode()
+    return f"https://www.tiktok.com/@{initiator}/video/{aweme_id}?cid={cid_b64}"
+
+
+async def reply_to_comment(aweme_id: str, comment_id: str, initiator: str, message: str) -> bool:
+    if needs_reboot():
+        logger.info("pre-reply-reboot", aweme_id=aweme_id, comment_id=comment_id)
+        await reboot_session()
+        raise SessionRebootError("session rebooted before reply, retrying")
+
+    got_status8 = False
+
+    async with _lock:
+        page = get_page()
+        url = build_video_url(initiator, aweme_id, comment_id)
+        logger.info("reply-start", aweme_id=aweme_id, comment_id=comment_id, initiator=initiator)
+        await page.goto(url)
+        await page.wait_for_load_state("networkidle")
+        await asyncio.sleep(2)
+
+        comment_list = page.locator('[class*="DivCommentListContainer"]')
+        await comment_list.wait_for(state="visible", timeout=15000)
+
+        first_comment = comment_list.locator('[class*="DivCommentObjectWrapper"]').first
+        await first_comment.wait_for(state="visible", timeout=10000)
+
+        reply_btn = first_comment.locator('[data-e2e="comment-reply-1"]').first
+        await reply_btn.click()
+        await asyncio.sleep(1)
+
+        editor = page.locator('[class*="DraftEditor-editorContainer"] [contenteditable="true"]')
+        await editor.wait_for(state="visible", timeout=10000)
+        await editor.click()
+        await page.keyboard.type(message, delay=50)
+        await asyncio.sleep(0.5)
+
+        publish_future = asyncio.get_running_loop().create_future()
+
+        async def on_response(response):
+            if "api/comment/publish" in response.url:
+                if not publish_future.done():
+                    publish_future.set_result(True)
+
+        page.on("response", on_response)
+
+        post_btn = page.locator('[data-e2e="comment-post"]')
+        await post_btn.click()
+
+        try:
+            await asyncio.wait_for(publish_future, timeout=30)
+        except asyncio.TimeoutError:
+            page.remove_listener("response", on_response)
+            logger.warning("publish-timeout", aweme_id=aweme_id, comment_id=comment_id)
+            return False
+
+        page.remove_listener("response", on_response)
+        got_status8 = check_status8()
+
+        if not got_status8:
+            await page.goto("https://www.tiktok.com/explore")
+            await page.wait_for_load_state("networkidle")
+
+    if got_status8:
+        logger.warning("post-reply-status8-reboot", aweme_id=aweme_id, comment_id=comment_id)
+        await reboot_session()
+        raise SessionRebootError("status-8 during reply, retrying")
+
+    logger.info("reply-done", aweme_id=aweme_id, comment_id=comment_id)
+    return True
