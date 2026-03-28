@@ -52,6 +52,7 @@ class MentionData:
     comment_id: str
     aweme_id: str
     username: str
+    video_owner: str
     aweme_type: int | None
     message: str
     media_type: str
@@ -64,6 +65,7 @@ class ScanRequest:
     vid: str
     cid: str
     username: str
+    video_owner: str
     content_type: int
     message: str
     quantity: int | None
@@ -115,6 +117,7 @@ async def poll_tiktok_mentions() -> list[MentionData]:
                 comment_id=cid,
                 aweme_id=vid,
                 username=username,
+                video_owner=m.get("video_owner", ""),
                 aweme_type=aweme_type,
                 message=message,
                 media_type=m.get("media_type", "video"),
@@ -195,6 +198,7 @@ async def validate_and_download_media(mention: MentionData) -> ScanRequest | Non
         vid=mention.aweme_id,
         cid=mention.comment_id,
         username=mention.username,
+        video_owner=mention.video_owner,
         content_type=content_type,
         message=mention.message,
         quantity=quantity,
@@ -374,10 +378,9 @@ async def reply_with_result(request: ScanRequest, result: dict) -> None:
         {
             "aweme_id": request.vid,
             "comment_id": request.cid,
-            "media_type": result["media_type"],
-            "username": request.username,
             "initiator": request.username,
             "message": result_text,
+            "username": request.video_owner,
         },
         id=f"dtkt-reply-{request.vid}-{request.cid}",
         task_queue=reply_queue,

@@ -17,29 +17,54 @@ if "%DTKT_GCP_PROJECT%"=="" (
     echo ERROR: DTKT_GCP_PROJECT not set in .env
     exit /b 1
 )
-if "%DTKT_DOPPLER_TOKEN%"=="" (
-    echo ERROR: DTKT_DOPPLER_TOKEN not set in .env
+if "%DTKT_WORKER_DOPPLER_TOKEN%"=="" (
+    echo ERROR: DTKT_WORKER_DOPPLER_TOKEN not set in .env
     exit /b 1
 )
-if "%DTKT_TEMPORAL_HOST%"=="" (
-    echo ERROR: DTKT_TEMPORAL_HOST not set in .env
-    exit /b 1
-)
-if "%DTKT_TEMPORAL_API_KEY%"=="" (
-    echo ERROR: DTKT_TEMPORAL_API_KEY not set in .env
+if "%DTKT_REPLIER_DOPPLER_TOKEN%"=="" (
+    echo ERROR: DTKT_REPLIER_DOPPLER_TOKEN not set in .env
     exit /b 1
 )
 
+set "TARGET=%~1"
+
+if "%TARGET%"=="" set "TARGET=all"
+if "%TARGET%"=="all"    goto :build_all
+if "%TARGET%"=="worker" goto :build_worker
+if "%TARGET%"=="replier" goto :build_replier
+echo ERROR: Unknown target "%TARGET%". Use: all, worker, or replier
+exit /b 1
+
+:build_all
+call :build_worker
+if errorlevel 1 exit /b 1
+call :build_replier
+if errorlevel 1 exit /b 1
+goto :terraform
+
+:build_worker
 set "DTKT_WORKER_IMAGE=gcr.io/%DTKT_GCP_PROJECT%/dtkt-worker:latest"
-
 echo === Building worker image ===
 docker build -t %DTKT_WORKER_IMAGE% detekt_worker\
 if errorlevel 1 exit /b 1
-
 echo === Pushing worker image ===
 docker push %DTKT_WORKER_IMAGE%
 if errorlevel 1 exit /b 1
+if "%TARGET%"=="worker" goto :terraform
+exit /b 0
 
+:build_replier
+set "DTKT_REPLIER_IMAGE=gcr.io/%DTKT_GCP_PROJECT%/dtkt-replier:latest"
+echo === Building replier image ===
+docker build -t %DTKT_REPLIER_IMAGE% detekt_replier\
+if errorlevel 1 exit /b 1
+echo === Pushing replier image ===
+docker push %DTKT_REPLIER_IMAGE%
+if errorlevel 1 exit /b 1
+if "%TARGET%"=="replier" goto :terraform
+exit /b 0
+
+:terraform
 echo === Running terraform ===
 pushd terraform
 
@@ -47,9 +72,8 @@ terraform init
 
 terraform apply ^
     -var="dtkt_gcp_project=%DTKT_GCP_PROJECT%" ^
-    -var="dtkt_doppler_token=%DTKT_DOPPLER_TOKEN%" ^
-    -var="dtkt_temporal_host=%DTKT_TEMPORAL_HOST%" ^
-    -var="dtkt_temporal_api_key=%DTKT_TEMPORAL_API_KEY%" ^
+    -var="dtkt_worker_doppler_token=%DTKT_WORKER_DOPPLER_TOKEN%" ^
+    -var="dtkt_replier_doppler_token=%DTKT_REPLIER_DOPPLER_TOKEN%" ^
     -auto-approve
 
 if errorlevel 1 (

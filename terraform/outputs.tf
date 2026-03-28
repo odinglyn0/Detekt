@@ -3,9 +3,19 @@ output "dtkt_worker_vm_ip" {
   description = "External IP of the worker VM"
 }
 
+output "dtkt_replier_vm_ip" {
+  value       = google_compute_instance.dtkt_replier.network_interface[0].access_config[0].nat_ip
+  description = "External IP of the replier VM"
+}
+
 output "dtkt_worker_service_account_email" {
   value       = google_service_account.dtkt_worker.email
   description = "Service account email for the worker"
+}
+
+output "dtkt_replier_service_account_email" {
+  value       = google_service_account.dtkt_replier.email
+  description = "Service account email for the replier"
 }
 
 output "dtkt_bucket_name" {

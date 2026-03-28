@@ -15,16 +15,16 @@ variable "dtkt_gcp_zone" {
   description = "GCP zone within London region"
 }
 
-variable "dtkt_vm_machine_type" {
+variable "dtkt_worker_machine_type" {
   type        = string
-  default     = "c2-standard-4"
+  default     = "e2-standard-2"
   description = "Worker VM machine type"
 }
 
-variable "dtkt_vm_disk_size" {
+variable "dtkt_worker_disk_size" {
   type        = number
   default     = 20
-  description = "Boot disk size in GB"
+  description = "Worker boot disk size in GB"
 }
 
 variable "dtkt_worker_docker_image" {
@@ -33,10 +33,34 @@ variable "dtkt_worker_docker_image" {
   description = "Docker image URI for the worker (defaults to gcr.io/{project}/dtkt-worker:latest)"
 }
 
-variable "dtkt_doppler_token" {
+variable "dtkt_worker_doppler_token" {
   type        = string
   sensitive   = true
-  description = "Doppler service token for secrets injection"
+  description = "Doppler service token for the worker"
+}
+
+variable "dtkt_replier_machine_type" {
+  type        = string
+  default     = "c2-standard-4"
+  description = "Replier VM machine type"
+}
+
+variable "dtkt_replier_disk_size" {
+  type        = number
+  default     = 30
+  description = "Replier boot disk size in GB (larger for browser deps)"
+}
+
+variable "dtkt_replier_docker_image" {
+  type        = string
+  default     = ""
+  description = "Docker image URI for the replier (defaults to gcr.io/{project}/dtkt-replier:latest)"
+}
+
+variable "dtkt_replier_doppler_token" {
+  type        = string
+  sensitive   = true
+  description = "Doppler service token for the replier"
 }
 
 variable "dtkt_bucket_name" {
@@ -44,5 +68,3 @@ variable "dtkt_bucket_name" {
   default     = "dtkt-media"
   description = "GCS bucket name for downloaded media"
 }
-
-

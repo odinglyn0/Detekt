@@ -12,9 +12,9 @@ with workflow.unsafe.imports_passed_through():
 class ReplyInput:
     aweme_id: str
     comment_id: str
-    username: str
     initiator: str
     message: str
+    username: str
 
 
 @activity.defn

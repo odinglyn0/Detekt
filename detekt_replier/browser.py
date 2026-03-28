@@ -4,6 +4,7 @@ import sentry_sdk
 from browserforge.fingerprints import Screen
 from camoufox.async_api import AsyncCamoufox
 from cookies import load_cookies
+from config import PROXY_URL
 from log import logger
 
 SESSION_TTL = 12 * 60 * 60
@@ -33,6 +34,7 @@ async def _boot():
         os="windows",
         screen=Screen(min_width=1920, min_height=1080, max_width=1920, max_height=1080),
         window=(1920, 1080),
+        proxy={"server": PROXY_URL} if PROXY_URL else None,
     )
     _browser = await _camoufox_cm.__aenter__()
     _context = (

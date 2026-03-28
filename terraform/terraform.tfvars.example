@@ -1,2 +1,3 @@
-dtkt_gcp_project        = "your-gcp-project-id"
-dtkt_doppler_token      = "dp.st.worker_xxxx"
+dtkt_gcp_project          = "your-gcp-project-id"
+dtkt_worker_doppler_token  = "dp.st.worker_xxxx"
+dtkt_replier_doppler_token = "dp.st.replier_xxxx"

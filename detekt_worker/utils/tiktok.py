@@ -225,12 +225,13 @@ async def poll_mentions() -> list[dict]:
             comment = at.get("comment", {})
             user_info = at.get("user_info", {})
             aweme = at.get("aweme", {})
-
+            author = aweme.get("author", {})
             mention: dict = {
                 "aweme_id": comment.get("aweme_id", ""),
                 "comment_id": comment.get("cid", ""),
                 "comment_text": at.get("content", ""),
                 "username": user_info.get("unique_id", ""),
+                "video_owner": author.get("unique_id", ""),
                 "aweme_type": aweme.get("aweme_type"),
                 "nid": n.get("nid", ""),
             }
