@@ -5,6 +5,8 @@ from google.cloud.firestore_v1.async_client import AsyncClient
 from google.cloud import firestore as firestore_types
 import structlog
 
+from utils.gcp_credentials import get_credentials, get_project_id
+
 logger = structlog.get_logger()
 
 _db: AsyncClient | None = None
@@ -14,8 +16,17 @@ def _get_db() -> AsyncClient:
     global _db
     if _db is not None:
         return _db
-    _db = AsyncClient()
-    logger.info("dtkt-firestore-init")
+
+    creds = get_credentials()
+    project = get_project_id()
+    kwargs = {}
+    if creds:
+        kwargs["credentials"] = creds
+    if project:
+        kwargs["project"] = project
+
+    _db = AsyncClient(**kwargs)
+    logger.info("dtkt-firestore-init", explicit_creds=creds is not None)
     return _db
 
 

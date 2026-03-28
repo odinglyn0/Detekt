@@ -10,6 +10,7 @@ from proxyproviders.algorithms import Random
 from proxyproviders.models.proxy import ProxyFormat
 import structlog
 
+from utils.gcp_credentials import get_credentials, get_project_id
 from utils.proxy import get_proxy_provider
 
 logger = structlog.get_logger()
@@ -24,9 +25,18 @@ def _get_bucket() -> gcs.Bucket:
         return _bucket
 
     dtkt_bucket_name = os.environ["DTKT_BUCKET_NAME"]
-    _client = gcs.Client()
+
+    creds = get_credentials()
+    project = get_project_id()
+    kwargs = {}
+    if creds:
+        kwargs["credentials"] = creds
+    if project:
+        kwargs["project"] = project
+
+    _client = gcs.Client(**kwargs)
     _bucket = _client.bucket(dtkt_bucket_name)
-    logger.info("dtkt-storage-init", bucket=dtkt_bucket_name)
+    logger.info("dtkt-storage-init", bucket=dtkt_bucket_name, explicit_creds=creds is not None)
     return _bucket
 
 
