@@ -25,7 +25,7 @@ def _get_db() -> AsyncClient:
     if project:
         kwargs["project"] = project
 
-    _db = AsyncClient(**kwargs)
+    _db = AsyncClient(database=get_secret("DTKT_FIRESTORE_DATABASE"), **kwargs)
     logger.info("dtkt-firestore-init", explicit_creds=creds is not None)
     return _db
 
