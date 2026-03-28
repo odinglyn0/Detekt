@@ -60,7 +60,9 @@ async def reply_to_comment(
                         )
                 break
 
-            first_comment = page.locator('[class*="DivCommentListContainer"] [class*="DivCommentObjectWrapper"]').first
+            first_comment = page.locator(
+                '[class*="DivCommentListContainer"] [class*="DivCommentObjectWrapper"]'
+            ).first
             await first_comment.wait_for(state="visible", timeout=10000)
 
             reply_btn = first_comment.locator('[data-e2e="comment-reply-1"]')
@@ -68,7 +70,9 @@ async def reply_to_comment(
             await reply_btn.click(force=True)
             await asyncio.sleep(0.3)
 
-            editor = page.locator('[data-e2e="comment-input"] [contenteditable="true"]').first
+            editor = page.locator(
+                '[data-e2e="comment-input"] [contenteditable="true"]'
+            ).first
             await editor.wait_for(state="visible", timeout=5000)
             await editor.click(force=True)
             await page.keyboard.type(message, delay=20)
