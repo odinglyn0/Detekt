@@ -45,25 +45,4 @@ variable "dtkt_bucket_name" {
   description = "GCS bucket name for downloaded media"
 }
 
-variable "dtkt_firestore_scans_collection" {
-  type        = string
-  default     = "dtkt-scans"
-  description = "Firestore collection for scan results"
-}
 
-variable "dtkt_temporal_host" {
-  type        = string
-  description = "Temporal server host:port (e.g. your-ns.tmprl.cloud:7233 or self-hosted:7233)"
-}
-
-variable "dtkt_temporal_namespace" {
-  type        = string
-  default     = "default"
-  description = "Temporal namespace"
-}
-
-variable "dtkt_temporal_api_key" {
-  type        = string
-  sensitive   = true
-  description = "Temporal Cloud API key for worker authentication"
-}

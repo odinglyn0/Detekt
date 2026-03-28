@@ -1,9 +1,9 @@
 import json
-import os
-import tempfile
 
 from google.oauth2 import service_account
 import structlog
+
+from utils.secrets import get_secret_optional
 
 logger = structlog.get_logger()
 
@@ -16,7 +16,7 @@ def _load_credentials() -> tuple[service_account.Credentials, str]:
     if _credentials is not None:
         return _credentials, _project_id
 
-    sa_json = os.environ.get("DTKT_GCP_SERVICE_ACCOUNT_JSON", "")
+    sa_json = get_secret_optional("DTKT_GCP_SERVICE_ACCOUNT_JSON", "")
     if not sa_json:
         logger.info("dtkt-gcp-creds-using-adc")
         return None, None

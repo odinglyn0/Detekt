@@ -1,4 +1,3 @@
-import os
 import time
 
 from google.cloud.firestore_v1.async_client import AsyncClient
@@ -6,6 +5,7 @@ from google.cloud import firestore as firestore_types
 import structlog
 
 from utils.gcp_credentials import get_credentials, get_project_id
+from utils.secrets import get_secret
 
 logger = structlog.get_logger()
 
@@ -31,7 +31,7 @@ def _get_db() -> AsyncClient:
 
 
 def _scans_collection() -> str:
-    return os.environ["DTKT_FIRESTORE_SCANS_COLLECTION"]
+    return get_secret("DTKT_FIRESTORE_SCANS_COLLECTION")
 
 
 async def get_cached_result(media_id: str) -> dict | None:

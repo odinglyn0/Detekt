@@ -1,5 +1,4 @@
 import asyncio
-import os
 import signal
 
 import sentry_sdk
@@ -49,9 +48,9 @@ def _init_sentry() -> None:
 async def run() -> None:
     _init_sentry()
 
-    temporal_host = os.environ["DTKT_TEMPORAL_HOST"]
-    temporal_namespace = os.environ.get("DTKT_TEMPORAL_NAMESPACE", "default")
-    temporal_api_key = os.environ.get("DTKT_TEMPORAL_API_KEY", "")
+    temporal_host = get_secret("DTKT_TEMPORAL_HOST")
+    temporal_namespace = get_secret("DTKT_TEMPORAL_NAMESPACE")
+    temporal_api_key = get_secret("DTKT_TEMPORAL_API_KEY")
     poll_interval = int(get_secret("DTKT_POLL_INTERVAL_SECONDS"))
 
     logger.info(

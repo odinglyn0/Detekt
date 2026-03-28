@@ -89,3 +89,9 @@ def get_secret(key: str) -> str:
         logger.error("dtkt-secret-missing", key=key)
         sys.exit(1)
     return value
+
+
+def get_secret_optional(key: str, default: str = "") -> str:
+    _start_refresh_thread()
+    secrets = _ensure_loaded()
+    return secrets.get(key, default)

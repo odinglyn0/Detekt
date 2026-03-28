@@ -1,7 +1,6 @@
 import asyncio
 import datetime
 import mimetypes
-import os
 from urllib.parse import urlparse
 
 import httpx
@@ -12,6 +11,7 @@ import structlog
 
 from utils.gcp_credentials import get_credentials, get_project_id
 from utils.proxy import get_proxy_provider
+from utils.secrets import get_secret
 
 logger = structlog.get_logger()
 
@@ -24,7 +24,7 @@ def _get_bucket() -> gcs.Bucket:
     if _bucket is not None:
         return _bucket
 
-    dtkt_bucket_name = os.environ["DTKT_BUCKET_NAME"]
+    dtkt_bucket_name = get_secret("DTKT_BUCKET_NAME")
 
     creds = get_credentials()
     project = get_project_id()
