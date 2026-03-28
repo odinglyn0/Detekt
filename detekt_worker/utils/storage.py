@@ -36,7 +36,9 @@ def _get_bucket() -> gcs.Bucket:
 
     _client = gcs.Client(**kwargs)
     _bucket = _client.bucket(dtkt_bucket_name)
-    logger.info("dtkt-storage-init", bucket=dtkt_bucket_name, explicit_creds=creds is not None)
+    logger.info(
+        "dtkt-storage-init", bucket=dtkt_bucket_name, explicit_creds=creds is not None
+    )
     return _bucket
 
 

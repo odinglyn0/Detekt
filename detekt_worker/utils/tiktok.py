@@ -59,17 +59,19 @@ async def ensure_session(force_fresh: bool = False) -> TikTokApi:
         _api = TikTokApi()
 
         async def _page_factory(context):
-            await context.add_cookies([
-                {
-                    "name": "sessionid",
-                    "value": get_secret("DTKT_TT_SESSIONID"),
-                    "domain": ".tiktok.com",
-                    "path": "/",
-                    "secure": True,
-                    "httpOnly": True,
-                    "sameSite": "None",
-                }
-            ])
+            await context.add_cookies(
+                [
+                    {
+                        "name": "sessionid",
+                        "value": get_secret("DTKT_TT_SESSIONID"),
+                        "domain": ".tiktok.com",
+                        "path": "/",
+                        "secure": True,
+                        "httpOnly": True,
+                        "sameSite": "None",
+                    }
+                ]
+            )
             page = await context.new_page()
             await page.goto("https://www.tiktok.com", wait_until="domcontentloaded")
             for _ in range(20):
@@ -145,7 +147,11 @@ async def poll_mentions() -> list[dict]:
             status = data.get("status_code", 0)
             if status in (3102, 3006, 8):
                 if attempt < MAX_SESSION_RETRIES:
-                    logger.warning("dtkt-login-expired-retrying", status=status, attempt=attempt + 1)
+                    logger.warning(
+                        "dtkt-login-expired-retrying",
+                        status=status,
+                        attempt=attempt + 1,
+                    )
                     await recreate_session()
                     continue
                 else:
