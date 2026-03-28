@@ -24,6 +24,7 @@ async def do_reply(input: ReplyInput) -> bool:
         aweme_id=input.aweme_id,
         comment_id=input.comment_id,
         initiator=input.initiator,
+        username=input.username,
         message=input.message,
     )
 
@@ -37,9 +38,6 @@ class ReplyWorkflow:
             input,
             start_to_close_timeout=timedelta(seconds=180),
             retry_policy=RetryPolicy(
-                initial_interval=timedelta(seconds=5),
-                backoff_coefficient=2.0,
-                maximum_interval=timedelta(seconds=60),
-                maximum_attempts=5,
+                maximum_attempts=1,
             ),
         )

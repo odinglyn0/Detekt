@@ -1,6 +1,7 @@
 import asyncio
 import time
 import sentry_sdk
+from browserforge.fingerprints import Screen
 from camoufox.async_api import AsyncCamoufox
 from cookies import load_cookies
 from log import logger
@@ -29,6 +30,8 @@ async def _boot():
         headless="virtual",
         humanize=True,
         geoip=True,
+        screen=Screen(min_width=1920, min_height=1000, max_width=2100, max_height=1100),
+        window=(1920, 1080),
     )
     _browser = await _camoufox_cm.__aenter__()
     _context = _browser.contexts[0] if _browser.contexts else await _browser.new_context()

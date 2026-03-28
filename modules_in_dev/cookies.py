@@ -32,7 +32,7 @@ def parse_netscape_cookies(raw: str) -> list[dict]:
         cookies.append({
             "name": name,
             "value": value,
-            "domain": domain.lstrip("."),
+            "domain": domain,
             "path": path,
             "secure": secure.upper() == "TRUE",
             "expires": int(expires) if int(expires) > 0 else -1,
