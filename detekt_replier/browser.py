@@ -1,11 +1,27 @@
 import asyncio
 import time
+from urllib.parse import urlparse
 import sentry_sdk
 from browserforge.fingerprints import Screen
 from camoufox.async_api import AsyncCamoufox
 from cookies import load_cookies
 from config import PROXY_URL
 from log import logger
+
+
+def _parse_proxy(url: str) -> dict | None:
+    if not url:
+        return None
+    parsed = urlparse(url)
+    proxy = {"server": f"{parsed.scheme}://{parsed.hostname}:{parsed.port}"}
+    if parsed.username:
+        proxy["username"] = parsed.username
+    if parsed.password:
+        proxy["password"] = parsed.password
+    return proxy
+
+
+_proxy = _parse_proxy(PROXY_URL)
 
 SESSION_TTL = 12 * 60 * 60
 
@@ -34,7 +50,7 @@ async def _boot():
         os="windows",
         screen=Screen(min_width=1920, min_height=1080, max_width=1920, max_height=1080),
         window=(1920, 1080),
-        proxy={"server": PROXY_URL} if PROXY_URL else None,
+        proxy=_proxy,
     )
     _browser = await _camoufox_cm.__aenter__()
     _context = (
