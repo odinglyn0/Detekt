@@ -61,7 +61,7 @@ async def upload_video(
     bucket = _get_bucket()
 
     proxy = get_proxy_provider().get_proxy(Random()).format(ProxyFormat.HTTPX)
-    async with httpx.AsyncClient(proxies=proxy) as client:
+    async with httpx.AsyncClient(proxy=proxy) as client:
         resp = await client.get(
             download_url, headers=headers or {}, timeout=120, follow_redirects=True
         )
@@ -86,7 +86,7 @@ async def upload_slideshow_images(
     paths = []
 
     proxy = get_proxy_provider().get_proxy(Random()).format(ProxyFormat.HTTPX)
-    async with httpx.AsyncClient(proxies=proxy) as client:
+    async with httpx.AsyncClient(proxy=proxy) as client:
         for idx, url in enumerate(image_urls, start=1):
             resp = await client.get(url, timeout=60, follow_redirects=True)
             resp.raise_for_status()
