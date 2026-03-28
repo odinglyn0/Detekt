@@ -3,6 +3,7 @@ import asyncio
 
 import sentry_sdk
 from temporalio import activity
+from temporalio.exceptions import ApplicationError
 import structlog
 
 from utils.secrets import get_secret
@@ -190,14 +191,18 @@ async def scan_media(request: ScanRequest) -> dict | None:
         blob_path = await get_video_blob_path(request.vid)
         if not blob_path:
             logger.warning("dtkt-video-not-found-in-bucket", vid=request.vid)
-            raise RuntimeError(f"video blob not found for {request.vid}")
+            raise ApplicationError(
+                f"video blob not found for {request.vid}", non_retryable=True
+            )
         signed_url = await get_signed_url(blob_path)
         scan = await asyncio.to_thread(check_video, signed_url)
     else:
         blob_path = await get_photo_blob_path(request.vid)
         if not blob_path:
             logger.warning("dtkt-photo-not-found-in-bucket", vid=request.vid)
-            raise RuntimeError(f"photo blob not found for {request.vid}")
+            raise ApplicationError(
+                f"photo blob not found for {request.vid}", non_retryable=True
+            )
         signed_url = await get_signed_url(blob_path)
         scan = await asyncio.to_thread(check_image, signed_url)
 
