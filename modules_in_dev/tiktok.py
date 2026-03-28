@@ -41,9 +41,8 @@ async def reply_to_comment(
             )
 
             for attempt in range(3):
-                await page.goto(url)
-                await page.wait_for_load_state("load")
-                await asyncio.sleep(3)
+                await page.goto(url, wait_until="domcontentloaded")
+                await asyncio.sleep(1)
 
                 trouble = page.locator(
                     'text="We\'re having trouble playing this video"'
@@ -53,7 +52,7 @@ async def reply_to_comment(
                         "video-load-failed", attempt=attempt + 1, aweme_id=aweme_id
                     )
                     if attempt < 2:
-                        await asyncio.sleep(2)
+                        await asyncio.sleep(1)
                         continue
                     else:
                         raise Exception(
@@ -61,25 +60,18 @@ async def reply_to_comment(
                         )
                 break
 
-            tab_bar = page.locator('[class*="DivVideoListTabBarWrapper"], .TUXTabBar')
-            await tab_bar.first.wait_for(state="visible", timeout=15000)
-
-            comment_list = page.locator('[class*="DivCommentListContainer"]')
-            await comment_list.wait_for(state="visible", timeout=15000)
-
-            first_comment = comment_list.locator('[class*="DivCommentObjectWrapper"]').first
-            await first_comment.wait_for(state="visible", timeout=15000)
+            first_comment = page.locator('[class*="DivCommentListContainer"] [class*="DivCommentObjectWrapper"]').first
+            await first_comment.wait_for(state="visible", timeout=10000)
 
             reply_btn = first_comment.locator('[data-e2e="comment-reply-1"]')
             await reply_btn.scroll_into_view_if_needed()
             await reply_btn.click(force=True)
-            await asyncio.sleep(1)
+            await asyncio.sleep(0.3)
 
             editor = page.locator('[data-e2e="comment-input"] [contenteditable="true"]').first
-            await editor.wait_for(state="visible", timeout=10000)
+            await editor.wait_for(state="visible", timeout=5000)
             await editor.click(force=True)
-            await page.keyboard.type(message, delay=50)
-            await asyncio.sleep(0.5)
+            await page.keyboard.type(message, delay=20)
 
             publish_future = asyncio.get_running_loop().create_future()
 
@@ -94,7 +86,7 @@ async def reply_to_comment(
             await post_btn.click(force=True)
 
             try:
-                await asyncio.wait_for(publish_future, timeout=30)
+                await asyncio.wait_for(publish_future, timeout=15)
             except asyncio.TimeoutError:
                 page.remove_listener("response", on_response)
                 logger.warning(
@@ -104,10 +96,6 @@ async def reply_to_comment(
 
             page.remove_listener("response", on_response)
             got_status8 = check_status8()
-
-            if not got_status8:
-                await page.goto("https://www.tiktok.com/explore")
-                await page.wait_for_load_state("load")
         finally:
             await dbg.stop()
 
