@@ -23,8 +23,9 @@ from utils.storage import (
     get_signed_url,
     get_video_blob_path,
     get_photo_blob_path,
+    get_all_photo_blob_paths,
 )
-from utils.sightengine import check_image, check_video, format_result
+from utils.sightengine import check_image, check_video, format_result, format_carousel_result
 from utils.firestore import (
     get_cached_result,
     store_scan_result,
@@ -62,6 +63,7 @@ class ScanRequest:
     content_type: int
     message: str
     quantity: int | None
+    uploaded_indices: list[int] | None = None
 
 
 @activity.defn
@@ -143,20 +145,34 @@ async def validate_and_download_media(mention: MentionData) -> ScanRequest | Non
         aweme = await get_video_info(mention.aweme_id)
         if aweme:
             video_url = extract_video_download_url(aweme)
+            logger.info("dtkt-fallback-video-url", vid=mention.aweme_id, found=video_url is not None)
 
     if content_type == 0 and not image_urls:
         aweme = await get_video_info(mention.aweme_id)
         if aweme:
             image_urls = extract_slideshow_image_urls(aweme)
+            logger.info(
+                "dtkt-fallback-image-urls",
+                vid=mention.aweme_id,
+                count=len(image_urls) if image_urls else 0,
+                has_image_post_info="image_post_info" in aweme,
+                has_imagePost="imagePost" in aweme,
+            )
+        else:
+            logger.warning("dtkt-video-info-returned-none", vid=mention.aweme_id)
 
     quantity = None
+    uploaded_indices = None
     try:
         if content_type == 1:
             if video_url:
                 await upload_video(mention.aweme_id, video_url)
+            else:
+                logger.warning("dtkt-no-video-url", vid=mention.aweme_id)
+                return None
         else:
             if image_urls:
-                _, quantity = await upload_slideshow_images(
+                _, quantity, uploaded_indices = await upload_slideshow_images(
                     mention.aweme_id, image_urls
                 )
             else:
@@ -165,6 +181,7 @@ async def validate_and_download_media(mention: MentionData) -> ScanRequest | Non
         logger.warning(
             "dtkt-media-download-error", vid=mention.aweme_id, error=str(exc)
         )
+        return None
 
     return ScanRequest(
         vid=mention.aweme_id,
@@ -173,6 +190,7 @@ async def validate_and_download_media(mention: MentionData) -> ScanRequest | Non
         content_type=content_type,
         message=mention.message,
         quantity=quantity,
+        uploaded_indices=uploaded_indices,
     )
 
 
@@ -188,8 +206,8 @@ async def scan_media(request: ScanRequest) -> dict | None:
                 msg="quantity is 0, media download may have failed",
             )
             return None
-        if request.quantity > 1:
-            logger.info("dtkt-slideshow-skipped", vid=request.vid, q=request.quantity)
+        if request.quantity > 5:
+            logger.info("dtkt-carousel-too-many", vid=request.vid, q=request.quantity)
             return None
 
     if await is_rate_limited(request.username):
@@ -203,6 +221,7 @@ async def scan_media(request: ScanRequest) -> dict | None:
             "dtkt_deepfake_score": cached.get("dtkt_deepfake_score", 0.0),
             "dtkt_is_deepfake": cached.get("dtkt_is_deepfake", False),
             "media_type": media_type,
+            "image_results": cached.get("dtkt_image_results"),
         }
 
     if request.content_type == 1:
@@ -214,49 +233,111 @@ async def scan_media(request: ScanRequest) -> dict | None:
             )
         signed_url = await get_signed_url(blob_path)
         scan = await asyncio.to_thread(check_video, signed_url)
-    else:
-        blob_path = await get_photo_blob_path(request.vid)
-        if not blob_path:
-            logger.warning("dtkt-photo-not-found-in-bucket", vid=request.vid)
-            raise ApplicationError(
-                f"photo blob not found for {request.vid}", non_retryable=True
-            )
-        signed_url = await get_signed_url(blob_path)
-        scan = await asyncio.to_thread(check_image, signed_url)
+
+        await store_scan_result(
+            media_id=request.vid,
+            media_type=media_type,
+            ai_score=scan["dtkt_ai_score"],
+            is_ai=scan["dtkt_is_ai"],
+            deepfake_score=scan["dtkt_deepfake_score"],
+            is_deepfake=scan["dtkt_is_deepfake"],
+            vid=request.vid,
+            cid=request.cid,
+            username=request.username,
+            message=request.message,
+            raw_response=scan["dtkt_raw"],
+        )
+
+        return {
+            "dtkt_ai_score": scan["dtkt_ai_score"],
+            "dtkt_is_ai": scan["dtkt_is_ai"],
+            "dtkt_deepfake_score": scan["dtkt_deepfake_score"],
+            "dtkt_is_deepfake": scan["dtkt_is_deepfake"],
+            "media_type": media_type,
+        }
+
+    blob_paths = await get_all_photo_blob_paths(request.vid)
+    if not blob_paths:
+        logger.warning("dtkt-photos-not-found-in-bucket", vid=request.vid)
+        raise ApplicationError(
+            f"photo blobs not found for {request.vid}", non_retryable=True
+        )
+
+    uploaded_indices = request.uploaded_indices or list(range(1, len(blob_paths) + 1))
+
+    image_results: list[dict] = []
+    all_raw: list[dict] = []
+    for i, blob_path in enumerate(blob_paths):
+        original_idx = uploaded_indices[i] if i < len(uploaded_indices) else i + 1
+        try:
+            signed_url = await get_signed_url(blob_path)
+            scan = await asyncio.to_thread(check_image, signed_url)
+            image_results.append({
+                "index": original_idx,
+                "ai_score": scan["dtkt_ai_score"],
+                "is_ai": scan["dtkt_is_ai"],
+                "deepfake_score": scan["dtkt_deepfake_score"],
+                "is_deepfake": scan["dtkt_is_deepfake"],
+            })
+            all_raw.append(scan["dtkt_raw"])
+        except Exception as exc:
+            logger.warning("dtkt-image-scan-failed", vid=request.vid, idx=original_idx, error=str(exc))
+            image_results.append({
+                "index": original_idx,
+                "ai_score": 0.0,
+                "is_ai": False,
+                "deepfake_score": 0.0,
+                "is_deepfake": False,
+                "error": str(exc),
+            })
+
+    ai_scores = [r["ai_score"] for r in image_results]
+    df_scores = [r["deepfake_score"] for r in image_results]
+    max_ai = max(ai_scores) if ai_scores else 0.0
+    max_df = max(df_scores) if df_scores else 0.0
+    threshold = float(get_secret("DTKT_AI_THRESHOLD"))
 
     await store_scan_result(
         media_id=request.vid,
         media_type=media_type,
-        ai_score=scan["dtkt_ai_score"],
-        is_ai=scan["dtkt_is_ai"],
-        deepfake_score=scan["dtkt_deepfake_score"],
-        is_deepfake=scan["dtkt_is_deepfake"],
+        ai_score=max_ai,
+        is_ai=max_ai > threshold,
+        deepfake_score=max_df,
+        is_deepfake=max_df > threshold,
         vid=request.vid,
         cid=request.cid,
         username=request.username,
         message=request.message,
-        raw_response=scan["dtkt_raw"],
+        raw_response={"images": all_raw, "per_image": image_results},
     )
 
     return {
-        "dtkt_ai_score": scan["dtkt_ai_score"],
-        "dtkt_is_ai": scan["dtkt_is_ai"],
-        "dtkt_deepfake_score": scan["dtkt_deepfake_score"],
-        "dtkt_is_deepfake": scan["dtkt_is_deepfake"],
+        "dtkt_ai_score": max_ai,
+        "dtkt_is_ai": max_ai > threshold,
+        "dtkt_deepfake_score": max_df,
+        "dtkt_is_deepfake": max_df > threshold,
         "media_type": media_type,
+        "image_results": image_results,
     }
 
 
 @activity.defn
 async def reply_with_result(request: ScanRequest, result: dict) -> None:
-    result_text = format_result(
-        tagger=request.username,
-        media_type=result["media_type"],
-        is_ai=result["dtkt_is_ai"],
-        ai_score=result["dtkt_ai_score"],
-        is_deepfake=result["dtkt_is_deepfake"],
-        deepfake_score=result["dtkt_deepfake_score"],
-    )
+    image_results = result.get("image_results")
+    if image_results and len(image_results) > 1:
+        result_text = format_carousel_result(
+            tagger=request.username,
+            image_results=image_results,
+        )
+    else:
+        result_text = format_result(
+            tagger=request.username,
+            media_type=result["media_type"],
+            is_ai=result["dtkt_is_ai"],
+            ai_score=result["dtkt_ai_score"],
+            is_deepfake=result["dtkt_is_deepfake"],
+            deepfake_score=result["dtkt_deepfake_score"],
+        )
     try:
         await reply_to_comment(request.vid, request.cid, request.username, result_text)
     except Exception as exc:

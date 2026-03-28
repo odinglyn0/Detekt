@@ -117,6 +117,38 @@ def check_video(video_url: str) -> dict:
     }
 
 
+def format_carousel_result(
+    tagger: str,
+    image_results: list[dict],
+) -> str:
+    threshold = float(get_secret("DTKT_AI_THRESHOLD"))
+    low_min = float(get_secret("DTKT_LOW_CONFIDENCE_MIN"))
+    low_max = float(get_secret("DTKT_LOW_CONFIDENCE_MAX"))
+
+    parts = []
+    for r in image_results:
+        idx = r["index"]
+        ai_pct = r["ai_score"] * 100
+        df_pct = r["deepfake_score"] * 100
+
+        if r.get("error"):
+            parts.append(f"#{idx}: couldn't scan")
+            continue
+
+        if r["is_ai"] and ai_pct > low_max:
+            parts.append(f"#{idx}: AI ({ai_pct:.0f}%)")
+        elif r["is_deepfake"] and df_pct > low_max:
+            parts.append(f"#{idx}: deepfake ({df_pct:.0f}%)")
+        else:
+            top = max(ai_pct, df_pct)
+            if low_min <= top <= low_max:
+                parts.append(f"#{idx}: unsure ({top:.0f}%)")
+            else:
+                parts.append(f"#{idx}: real ({ai_pct:.0f}%)")
+
+    return f"@{tagger} " + ", ".join(parts)
+
+
 def format_result(
     tagger: str,
     media_type: str,

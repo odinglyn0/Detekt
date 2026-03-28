@@ -18,7 +18,7 @@ _api: TikTokApi | None = None
 _last_min_time: int = 0
 _session_created_at: float = 0
 
-MAX_SESSION_RETRIES = 100
+MAX_SESSION_RETRIES = 2
 SENTRY_FLUSH_TIMEOUT = 2
 SESSION_MAX_AGE_SECONDS = 45 * 60
 
@@ -240,14 +240,22 @@ async def poll_mentions() -> list[dict]:
             classified = classify_aweme_type(aweme_type_val)
 
             if classified == "slideshow" or (
-                classified == "unknown" and aweme.get("image_post_info")
+                classified == "unknown"
+                and (aweme.get("image_post_info") or aweme.get("imagePost"))
             ):
                 mention["media_type"] = "slideshow"
+                image_post = aweme.get("image_post_info") or aweme.get("imagePost") or {}
                 mention["image_urls"] = []
-                for img in (aweme.get("image_post_info") or {}).get("images", []):
-                    display = img.get("display_image") or {}
-                    url_list = display.get("url_list", [])
-                    url = _pick_url(url_list)
+                images = image_post.get("images", [])
+                if images:
+                    logger.info(
+                        "dtkt-slideshow-raw-sample",
+                        vid=mention["aweme_id"],
+                        image_keys=list(images[0].keys()) if images else [],
+                        sample=str(images[0])[:500] if images else "empty",
+                    )
+                for img in images:
+                    url = _extract_image_url(img)
                     if url:
                         mention["image_urls"].append(url)
             else:
@@ -275,8 +283,18 @@ async def get_video_info(video_id: str) -> dict | None:
     for attempt in range(MAX_SESSION_RETRIES + 1):
         api = await ensure_session()
         try:
-            video = api.video(id=video_id)
-            return await video.info()
+            url = f"https://www.tiktok.com/@_/video/{video_id}"
+            video = api.video(url=url)
+            data = await video.info()
+            if data:
+                logger.info(
+                    "dtkt-video-info-fetched",
+                    vid=video_id,
+                    top_keys=sorted(data.keys())[:15],
+                    has_image_post_info="image_post_info" in data,
+                    has_imagePost="imagePost" in data,
+                )
+            return data
         except Exception as exc:
             if attempt < MAX_SESSION_RETRIES:
                 logger.warning(
@@ -306,11 +324,30 @@ def _pick_url(url_list: list) -> str | None:
 
 def extract_video_download_url(aweme: dict) -> str | None:
     video = aweme.get("video", {})
+    url = video.get("downloadAddr") or video.get("playAddr")
+    if url and isinstance(url, str):
+        return url
+    if isinstance(video.get("playAddr"), list):
+        for item in video["playAddr"]:
+            if isinstance(item, dict) and item.get("src"):
+                return item["src"]
     return (
-        video.get("downloadAddr")
-        or video.get("playAddr")
+        _pick_url(video.get("download_addr", {}).get("url_list", []))
         or _pick_url(video.get("play_addr", {}).get("url_list", []))
     )
+
+
+def _extract_image_url(img: dict) -> str | None:
+    for key in ("imageURL", "thumbnail", "display_image", "owner_watermark_image"):
+        container = img.get(key)
+        if not container or not isinstance(container, dict):
+            continue
+        url_list = container.get("urlList") or container.get("url_list") or []
+        url = _pick_url(url_list)
+        if url:
+            return url
+    url_list = img.get("urlList") or img.get("url_list") or []
+    return _pick_url(url_list)
 
 
 def extract_slideshow_image_urls(aweme: dict) -> list[str]:
@@ -318,16 +355,16 @@ def extract_slideshow_image_urls(aweme: dict) -> list[str]:
     images = image_post.get("images", [])
     urls = []
     for img in images:
-        thumbnail = (
-            img.get("thumbnail")
-            or img.get("display_image")
-            or img.get("owner_watermark_image")
-            or {}
-        )
-        url_list = thumbnail.get("url_list", [])
-        url = _pick_url(url_list)
+        url = _extract_image_url(img)
         if url:
             urls.append(url)
+    if not urls:
+        logger.warning(
+            "dtkt-slideshow-no-urls-extracted",
+            keys=list(image_post.keys()) if image_post else [],
+            image_count=len(images),
+            sample_keys=list(images[0].keys()) if images else [],
+        )
     return urls
 
 
@@ -341,45 +378,29 @@ async def reply_to_comment(
 ) -> dict | None:
     text = f"@{username} {result_text}"
 
-    for attempt in range(MAX_SESSION_RETRIES + 1):
-        try:
-            user = _get_tikapi_user()
-            response = await asyncio.to_thread(
-                user.posts.comments.post,
-                media_id=vid,
-                text=text,
-                reply_comment_id=cid,
-                has_tags=True,
-            )
-            result = response.json()
-            logger.info("dtkt-reply-posted", vid=vid, cid=cid, result=result)
-            return result
-        except ResponseException as exc:
-            if attempt < MAX_SESSION_RETRIES:
-                logger.warning(
-                    "dtkt-reply-retrying",
-                    vid=vid,
-                    cid=cid,
-                    attempt=attempt + 1,
-                    error=str(exc),
-                    status=exc.response.status_code,
-                )
-                _report(exc)
-            else:
-                _report(exc)
-                logger.error("dtkt-reply-failed", vid=vid, cid=cid, error=str(exc))
-                return None
-        except Exception as exc:
-            if attempt < MAX_SESSION_RETRIES:
-                logger.warning(
-                    "dtkt-reply-retrying",
-                    vid=vid,
-                    cid=cid,
-                    attempt=attempt + 1,
-                    error=str(exc),
-                )
-                _report(exc)
-            else:
-                _report(exc)
-                logger.error("dtkt-reply-failed", vid=vid, cid=cid, error=str(exc))
-                return None
+    try:
+        user = _get_tikapi_user()
+        response = await asyncio.to_thread(
+            user.posts.comments.post,
+            media_id=vid,
+            text=text,
+            reply_comment_id=cid,
+            has_tags=True,
+        )
+        result = response.json()
+        logger.info("dtkt-reply-posted", vid=vid, cid=cid, result=result)
+        return result
+    except ResponseException as exc:
+        _report(exc)
+        logger.error(
+            "dtkt-reply-failed",
+            vid=vid,
+            cid=cid,
+            error=str(exc),
+            status=exc.response.status_code,
+        )
+        return None
+    except Exception as exc:
+        _report(exc)
+        logger.error("dtkt-reply-failed", vid=vid, cid=cid, error=str(exc))
+        return None

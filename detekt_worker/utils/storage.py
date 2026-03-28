@@ -55,13 +55,22 @@ def _guess_extension(url: str, content_type: str | None) -> str:
     return "mp4"
 
 
+def _get_proxy_url() -> str:
+    raw = get_proxy_provider().get_proxy(Random()).format(ProxyFormat.HTTPX)
+    if isinstance(raw, dict):
+        return raw.get("https://") or raw.get("http://") or next(iter(raw.values()))
+    return raw
+
+
 async def upload_video(
     video_id: str, download_url: str, headers: dict | None = None
 ) -> str:
     bucket = _get_bucket()
 
-    proxy = get_proxy_provider().get_proxy(Random()).format(ProxyFormat.HTTPX)
+    proxy = _get_proxy_url()
     async with httpx.AsyncClient(proxy=proxy) as client:
+        if not isinstance(download_url, str):
+            raise ValueError(f"download_url is {type(download_url).__name__}, not str: {str(download_url)[:200]}")
         resp = await client.get(
             download_url, headers=headers or {}, timeout=120, follow_redirects=True
         )
@@ -81,15 +90,23 @@ async def upload_video(
 
 async def upload_slideshow_images(
     video_id: str, image_urls: list[str]
-) -> tuple[list[str], int]:
+) -> tuple[list[str], int, list[int]]:
     bucket = _get_bucket()
     paths = []
+    original_indices = []
 
-    proxy = get_proxy_provider().get_proxy(Random()).format(ProxyFormat.HTTPX)
+    proxy = _get_proxy_url()
     async with httpx.AsyncClient(proxy=proxy) as client:
         for idx, url in enumerate(image_urls, start=1):
-            resp = await client.get(url, timeout=60, follow_redirects=True)
-            resp.raise_for_status()
+            if not isinstance(url, str):
+                logger.warning("dtkt-bad-image-url", video_id=video_id, idx=idx, url_type=type(url).__name__, url_value=str(url)[:200])
+                continue
+            try:
+                resp = await client.get(url, timeout=60, follow_redirects=True)
+                resp.raise_for_status()
+            except Exception as exc:
+                logger.warning("dtkt-image-download-failed", video_id=video_id, idx=idx, error=str(exc))
+                continue
 
             content_type = resp.headers.get("content-type")
             ext = _guess_extension(url, content_type)
@@ -100,10 +117,11 @@ async def upload_slideshow_images(
                 blob.upload_from_string, resp.content, content_type or "image/jpeg"
             )
             paths.append(blob_path)
+            original_indices.append(idx)
 
     quantity = len(paths)
-    logger.info("dtkt-slideshow-uploaded", video_id=video_id, count=quantity)
-    return paths, quantity
+    logger.info("dtkt-slideshow-uploaded", video_id=video_id, count=quantity, indices=original_indices)
+    return paths, quantity, original_indices
 
 
 async def get_signed_url(blob_path: str, expiry_minutes: int = 30) -> str:
@@ -138,3 +156,12 @@ async def get_photo_blob_path(vid: str) -> str | None:
     if blobs:
         return blobs[0].name
     return None
+
+
+async def get_all_photo_blob_paths(vid: str) -> list[str]:
+    bucket = _get_bucket()
+    prefix = f"pics/{vid}/"
+    blobs = await asyncio.to_thread(
+        lambda: list(bucket.list_blobs(prefix=prefix))
+    )
+    return sorted([b.name for b in blobs])
