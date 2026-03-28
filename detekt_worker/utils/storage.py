@@ -5,13 +5,10 @@ from urllib.parse import urlparse
 
 import httpx
 from google.cloud import storage as gcs
-from proxyproviders.algorithms import Random
-from proxyproviders.models.proxy import ProxyFormat
 import structlog
 
 from utils.gcp_credentials import get_credentials, get_project_id
-from utils.proxy import get_proxy_provider
-from utils.secrets import get_secret
+from utils.secrets import get_secret, get_secret_optional
 
 logger = structlog.get_logger()
 
@@ -55,11 +52,8 @@ def _guess_extension(url: str, content_type: str | None) -> str:
     return "mp4"
 
 
-def _get_proxy_url() -> str:
-    raw = get_proxy_provider().get_proxy(Random()).format(ProxyFormat.HTTPX)
-    if isinstance(raw, dict):
-        return raw.get("https://") or raw.get("http://") or next(iter(raw.values()))
-    return raw
+def _get_proxy_url() -> str | None:
+    return get_secret_optional("DTKT_PROXY") or None
 
 
 async def upload_video(

@@ -6,10 +6,7 @@ import sentry_sdk
 from TikTokApi import TikTokApi
 import structlog
 
-from proxyproviders.algorithms import Random
-
-from utils.secrets import get_secret
-from utils.proxy import get_proxy_provider
+from utils.secrets import get_secret, get_secret_optional
 
 logger = structlog.get_logger()
 
@@ -96,12 +93,17 @@ async def ensure_session(force_fresh: bool = False) -> TikTokApi:
                     await asyncio.sleep(0.5)
                 return page
 
+            pw_proxy = get_secret_optional("DTKT_PROXY") or None
+            if pw_proxy:
+                logger.info("dtkt-session-using-proxy", proxy=pw_proxy)
+
             await _api.create_sessions(
                 num_sessions=1,
                 sleep_after=3,
                 browser="chromium",
                 headless=True,
                 page_factory=_page_factory,
+                proxy=pw_proxy,
             )
             _session_created_at = time.monotonic()
             token = await _extract_ms_token(_api)
