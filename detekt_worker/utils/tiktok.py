@@ -106,7 +106,11 @@ async def ensure_session(force_fresh: bool = False) -> TikTokApi:
             )
             _session_created_at = time.monotonic()
             token = await _extract_ms_token(_api)
-            logger.info("dtkt-tiktok-session-created", has_token=token is not None, attempt=attempt)
+            logger.info(
+                "dtkt-tiktok-session-created",
+                has_token=token is not None,
+                attempt=attempt,
+            )
             return _api
         except Exception as exc:
             last_exc = exc
@@ -132,7 +136,9 @@ async def ensure_session(force_fresh: bool = False) -> TikTokApi:
                 await asyncio.sleep(backoff)
 
     _report(last_exc)
-    logger.error("dtkt-session-create-failed-all-attempts", attempts=MAX_SESSION_RETRIES)
+    logger.error(
+        "dtkt-session-create-failed-all-attempts", attempts=MAX_SESSION_RETRIES
+    )
     raise last_exc
 
 
@@ -237,11 +243,13 @@ async def poll_mentions() -> list[dict]:
                 classified == "unknown" and aweme.get("image_post_info")
             ):
                 mention["media_type"] = "slideshow"
-                mention["image_urls"] = [
-                    img["display_image"]["url_list"][0]
-                    for img in (aweme.get("image_post_info") or {}).get("images", [])
-                    if img.get("display_image", {}).get("url_list")
-                ]
+                mention["image_urls"] = []
+                for img in (aweme.get("image_post_info") or {}).get("images", []):
+                    display = img.get("display_image") or {}
+                    url_list = display.get("url_list", [])
+                    url = _pick_url(url_list)
+                    if url:
+                        mention["image_urls"].append(url)
             else:
                 mention["media_type"] = "video"
                 play_addr = aweme.get("video", {}).get("play_addr", {})
@@ -285,12 +293,23 @@ async def get_video_info(video_id: str) -> dict | None:
                 return None
 
 
+def _pick_url(url_list: list) -> str | None:
+    for item in url_list:
+        if isinstance(item, str) and item:
+            return item
+        if isinstance(item, dict):
+            val = item.get("url") or item.get("src") or item.get("uri") or ""
+            if val:
+                return val
+    return None
+
+
 def extract_video_download_url(aweme: dict) -> str | None:
     video = aweme.get("video", {})
     return (
         video.get("downloadAddr")
         or video.get("playAddr")
-        or video.get("play_addr", {}).get("url_list", [None])[0]
+        or _pick_url(video.get("play_addr", {}).get("url_list", []))
     )
 
 
@@ -306,8 +325,9 @@ def extract_slideshow_image_urls(aweme: dict) -> list[str]:
             or {}
         )
         url_list = thumbnail.get("url_list", [])
-        if url_list:
-            urls.append(url_list[0])
+        url = _pick_url(url_list)
+        if url:
+            urls.append(url)
     return urls
 
 

@@ -25,7 +25,13 @@ from utils.storage import (
     get_photo_blob_path,
 )
 from utils.sightengine import check_image, check_video, format_result
-from utils.firestore import get_cached_result, store_scan_result, is_mention_seen, mark_mention_seen, store_skipped
+from utils.firestore import (
+    get_cached_result,
+    store_scan_result,
+    is_mention_seen,
+    mark_mention_seen,
+    store_skipped,
+)
 from utils.rate_limiter import is_rate_limited
 
 logger = structlog.get_logger()

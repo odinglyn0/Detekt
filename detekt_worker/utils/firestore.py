@@ -79,23 +79,29 @@ async def store_skipped(media_id: str, reason: str, cid: str | None = None) -> N
     batch = db.batch()
 
     doc_ref = db.collection(_scans_collection()).document(media_id)
-    batch.set(doc_ref, {
-        "dtkt_status": "skipped",
-        "dtkt_media_id": media_id,
-        "dtkt_skip_reason": reason,
-        "dtkt_skipped_at": time.time(),
-        "dtkt_created_at": firestore_types.SERVER_TIMESTAMP,
-    })
+    batch.set(
+        doc_ref,
+        {
+            "dtkt_status": "skipped",
+            "dtkt_media_id": media_id,
+            "dtkt_skip_reason": reason,
+            "dtkt_skipped_at": time.time(),
+            "dtkt_created_at": firestore_types.SERVER_TIMESTAMP,
+        },
+    )
 
     if cid:
         mention_ref = db.collection(_scans_collection()).document(f"mention:{cid}")
-        batch.set(mention_ref, {
-            "dtkt_status": "seen",
-            "dtkt_cid": cid,
-            "dtkt_vid": media_id,
-            "dtkt_seen_at": time.time(),
-            "dtkt_created_at": firestore_types.SERVER_TIMESTAMP,
-        })
+        batch.set(
+            mention_ref,
+            {
+                "dtkt_status": "seen",
+                "dtkt_cid": cid,
+                "dtkt_vid": media_id,
+                "dtkt_seen_at": time.time(),
+                "dtkt_created_at": firestore_types.SERVER_TIMESTAMP,
+            },
+        )
 
     await batch.commit()
     logger.info("dtkt-firestore-skipped", media_id=media_id, reason=reason)
