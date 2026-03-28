@@ -41,21 +41,17 @@ async def reply_to_comment(aweme_id: str, comment_id: str, initiator: str, usern
                         raise Exception(f"Video failed to load after 3 attempts: {aweme_id}")
                 break
 
-            # Wait for the comment list (auto-opened by ?cid= param)
             comment_list = page.locator('[class*="DivCommentListContainer"]')
             await comment_list.wait_for(state="visible", timeout=15000)
 
-            # First actual comment — use the content container with data-comment-ui-enabled
             first_comment = page.locator('[data-comment-ui-enabled="true"]').first
             await first_comment.wait_for(state="visible", timeout=15000)
 
-            # Click Reply
             reply_btn = first_comment.locator('[data-e2e="comment-reply-1"]')
             await reply_btn.scroll_into_view_if_needed()
             await reply_btn.click()
             await asyncio.sleep(1)
 
-            # After clicking reply, a new editor appears in the reply container
             reply_editor = page.locator('[class*="DivReplyContainer"] [contenteditable="true"]').first
             await reply_editor.wait_for(state="visible", timeout=10000)
             await reply_editor.click()
