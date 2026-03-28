@@ -28,6 +28,20 @@ def _report(exc: Exception) -> None:
     sentry_sdk.flush(timeout=SENTRY_FLUSH_TIMEOUT)
 
 
+VIDEO_AWEME_TYPES = {0, 4, 51, 55, 58, 61}
+PHOTO_AWEME_TYPES = {2, 68, 150}
+
+
+def classify_aweme_type(aweme_type: int | None) -> str:
+    if aweme_type is None:
+        return "unknown"
+    if aweme_type in PHOTO_AWEME_TYPES:
+        return "slideshow"
+    if aweme_type in VIDEO_AWEME_TYPES:
+        return "video"
+    return "unknown"
+
+
 def _get_supported_types() -> set[int]:
     raw = get_secret("DTKT_SUPPORTED_TYPES")
     return {int(x.strip()) for x in raw.split(",") if x.strip()}
@@ -55,49 +69,71 @@ async def ensure_session(force_fresh: bool = False) -> TikTokApi:
         logger.info("dtkt-session-stale-rotating", age_seconds=int(age))
         await close_session()
 
-    try:
-        _api = TikTokApi()
+    last_exc = None
+    for attempt in range(1, MAX_SESSION_RETRIES + 1):
+        try:
+            _api = TikTokApi()
 
-        async def _page_factory(context):
-            await context.add_cookies(
-                [
-                    {
-                        "name": "sessionid",
-                        "value": get_secret("DTKT_TT_SESSIONID"),
-                        "domain": ".tiktok.com",
-                        "path": "/",
-                        "secure": True,
-                        "httpOnly": True,
-                        "sameSite": "None",
-                    }
-                ]
+            async def _page_factory(context):
+                await context.add_cookies(
+                    [
+                        {
+                            "name": "sessionid",
+                            "value": get_secret("DTKT_TT_SESSIONID"),
+                            "domain": ".tiktok.com",
+                            "path": "/",
+                            "secure": True,
+                            "httpOnly": True,
+                            "sameSite": "None",
+                        }
+                    ]
+                )
+                page = await context.new_page()
+                await page.goto("https://www.tiktok.com", wait_until="domcontentloaded")
+                for _ in range(20):
+                    cookies = await context.cookies()
+                    if any(c["name"] == "msToken" and c.get("value") for c in cookies):
+                        break
+                    await asyncio.sleep(0.5)
+                return page
+
+            await _api.create_sessions(
+                num_sessions=1,
+                sleep_after=3,
+                browser="chromium",
+                headless=True,
+                page_factory=_page_factory,
             )
-            page = await context.new_page()
-            await page.goto("https://www.tiktok.com", wait_until="domcontentloaded")
-            for _ in range(20):
-                cookies = await context.cookies()
-                if any(c["name"] == "msToken" and c.get("value") for c in cookies):
-                    break
-                await asyncio.sleep(0.5)
-            return page
+            _session_created_at = time.monotonic()
+            token = await _extract_ms_token(_api)
+            logger.info("dtkt-tiktok-session-created", has_token=token is not None, attempt=attempt)
+            return _api
+        except Exception as exc:
+            last_exc = exc
+            logger.warning(
+                "dtkt-session-create-retry",
+                attempt=attempt,
+                max_attempts=MAX_SESSION_RETRIES,
+                error=str(exc),
+            )
+            if _api is not None:
+                try:
+                    await _api.close_sessions()
+                except Exception:
+                    pass
+                try:
+                    await _api.stop_playwright()
+                except Exception:
+                    pass
+                _api = None
 
-        await _api.create_sessions(
-            num_sessions=1,
-            sleep_after=3,
-            browser="chromium",
-            headless=True,
-            page_factory=_page_factory,
-        )
-        _session_created_at = time.monotonic()
-        token = await _extract_ms_token(_api)
-        logger.info("dtkt-tiktok-session-created", has_token=token is not None)
-    except Exception as exc:
-        _api = None
-        _report(exc)
-        logger.error("dtkt-session-create-failed", error=str(exc))
-        raise
+            if attempt < MAX_SESSION_RETRIES:
+                backoff = min(5 * attempt, 30)
+                await asyncio.sleep(backoff)
 
-    return _api
+    _report(last_exc)
+    logger.error("dtkt-session-create-failed-all-attempts", attempts=MAX_SESSION_RETRIES)
+    raise last_exc
 
 
 async def recreate_session() -> TikTokApi:
@@ -194,11 +230,16 @@ async def poll_mentions() -> list[dict]:
                 "nid": n.get("nid", ""),
             }
 
-            if aweme.get("image_post_info"):
+            aweme_type_val = aweme.get("aweme_type")
+            classified = classify_aweme_type(aweme_type_val)
+
+            if classified == "slideshow" or (
+                classified == "unknown" and aweme.get("image_post_info")
+            ):
                 mention["media_type"] = "slideshow"
                 mention["image_urls"] = [
                     img["display_image"]["url_list"][0]
-                    for img in aweme["image_post_info"].get("images", [])
+                    for img in (aweme.get("image_post_info") or {}).get("images", [])
                     if img.get("display_image", {}).get("url_list")
                 ]
             else:

@@ -48,6 +48,59 @@ async def get_cached_result(media_id: str) -> dict | None:
     return None
 
 
+async def is_known(media_id: str) -> bool:
+    db = _get_db()
+    doc = await db.collection(_scans_collection()).document(media_id).get()
+    return doc.exists
+
+
+async def is_mention_seen(cid: str) -> bool:
+    db = _get_db()
+    doc = await db.collection(_scans_collection()).document(f"mention:{cid}").get()
+    return doc.exists
+
+
+async def mark_mention_seen(cid: str, vid: str) -> None:
+    db = _get_db()
+    doc_ref = db.collection(_scans_collection()).document(f"mention:{cid}")
+    await doc_ref.set(
+        {
+            "dtkt_status": "seen",
+            "dtkt_cid": cid,
+            "dtkt_vid": vid,
+            "dtkt_seen_at": time.time(),
+            "dtkt_created_at": firestore_types.SERVER_TIMESTAMP,
+        }
+    )
+
+
+async def store_skipped(media_id: str, reason: str, cid: str | None = None) -> None:
+    db = _get_db()
+    batch = db.batch()
+
+    doc_ref = db.collection(_scans_collection()).document(media_id)
+    batch.set(doc_ref, {
+        "dtkt_status": "skipped",
+        "dtkt_media_id": media_id,
+        "dtkt_skip_reason": reason,
+        "dtkt_skipped_at": time.time(),
+        "dtkt_created_at": firestore_types.SERVER_TIMESTAMP,
+    })
+
+    if cid:
+        mention_ref = db.collection(_scans_collection()).document(f"mention:{cid}")
+        batch.set(mention_ref, {
+            "dtkt_status": "seen",
+            "dtkt_cid": cid,
+            "dtkt_vid": media_id,
+            "dtkt_seen_at": time.time(),
+            "dtkt_created_at": firestore_types.SERVER_TIMESTAMP,
+        })
+
+    await batch.commit()
+    logger.info("dtkt-firestore-skipped", media_id=media_id, reason=reason)
+
+
 async def store_scan_result(
     media_id: str,
     media_type: str,

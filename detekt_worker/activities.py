@@ -10,6 +10,7 @@ from utils.secrets import get_secret
 from utils.tiktok import (
     poll_mentions,
     is_supported_aweme,
+    classify_aweme_type,
     get_video_info,
     extract_video_download_url,
     extract_slideshow_image_urls,
@@ -24,7 +25,7 @@ from utils.storage import (
     get_photo_blob_path,
 )
 from utils.sightengine import check_image, check_video, format_result
-from utils.firestore import get_cached_result, store_scan_result
+from utils.firestore import get_cached_result, store_scan_result, is_mention_seen, mark_mention_seen, store_skipped
 from utils.rate_limiter import is_rate_limited
 
 logger = structlog.get_logger()
@@ -79,16 +80,23 @@ async def poll_tiktok_mentions() -> list[MentionData]:
         if not cid or not vid:
             continue
 
+        if await is_mention_seen(cid):
+            continue
+
         if trigger_word not in message.lower():
             continue
 
         if username.lower() in blacklist:
             logger.info("dtkt-blacklisted-user", vid=vid, user=username)
+            await mark_mention_seen(cid, vid)
             continue
 
         if aweme_type is not None and not is_supported_aweme(aweme_type):
             logger.info("dtkt-unsupported-type", vid=vid, type=aweme_type)
+            await store_skipped(vid, f"unsupported_type:{aweme_type}", cid=cid)
             continue
+
+        await mark_mention_seen(cid, vid)
 
         results.append(
             MentionData(
@@ -108,7 +116,11 @@ async def poll_tiktok_mentions() -> list[MentionData]:
 
 @activity.defn
 async def validate_and_download_media(mention: MentionData) -> ScanRequest | None:
-    content_type = 0 if mention.media_type == "slideshow" else 1
+    classified = classify_aweme_type(mention.aweme_type)
+    if classified == "unknown":
+        content_type = 0 if mention.media_type == "slideshow" else 1
+    else:
+        content_type = 0 if classified == "slideshow" else 1
 
     logger.info(
         "dtkt-mention-found",
