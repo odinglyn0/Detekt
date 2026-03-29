@@ -193,6 +193,18 @@ This builds Docker images, pushes to GCR, and runs `terraform apply` with auto-a
 | `DTKT_GCS_DBGSC_PATH` | GCS path prefix for debug screenshots |
 | Proxy vars | Same as worker |
 
+## Security
+
+See [SECURITY.md](SECURITY.md).
+
+## Maintaining
+
+See [MAINTAINING.md](MAINTAINING.md).
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
