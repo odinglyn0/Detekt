@@ -157,10 +157,8 @@ This builds Docker images, pushes to GCR, and runs `terraform apply` with auto-a
 | `DTKT_BUCKET_NAME` | GCS bucket name |
 | `DTKT_FIRESTORE_DATABASE` | Firestore database name |
 | `DTKT_FIRESTORE_SCANS_COLLECTION` | Firestore collection name |
-| `DTKT_SIGHTENGINE_ACC_POOL` | Enable Sightengine account pool (`true`/`false`) |
-| `DTKT_SIGHTENGINE_ACCS` | JSON map of `{api_user: api_secret}` pairs |
-| `DTKT_SIGHTENGINE_API_USER` | Single Sightengine API user (if not using pool) |
-| `DTKT_SIGHTENGINE_API_SECRET` | Single Sightengine API secret |
+| `DTKT_SIGHTENGINE_API_USER` | Sightengine API user |
+| `DTKT_SIGHTENGINE_API_SECRET` | Sightengine API secret |
 | `DTKT_AI_THRESHOLD` | Score threshold for AI/deepfake classification |
 | `DTKT_LOW_CONFIDENCE_MIN` | Lower bound for "unsure" range |
 | `DTKT_LOW_CONFIDENCE_MAX` | Upper bound for "unsure" range |
