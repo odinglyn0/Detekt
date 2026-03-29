@@ -8,10 +8,18 @@ from proxy import get_proxy
 from log import logger
 
 
+from secret_manager import get_secret
+
+
 _proxy = None
 
-SESSION_TTL = 12 * 60 * 60
-BOOT_MAX_RETRIES = 3
+
+def _get_session_ttl() -> int:
+    return int(get_secret("DTKT_REPLIER_SESSION_TTL"))
+
+
+def _get_boot_max_retries() -> int:
+    return int(get_secret("DTKT_REPLIER_BOOT_MAX_RETRIES"))
 
 _browser = None
 _context = None
@@ -31,7 +39,7 @@ class SessionRebootError(Exception):
 async def _boot():
     global _browser, _context, _page, _camoufox_cm, _started_at, _status8_detected, _proxy
     last_err = None
-    for attempt in range(1, BOOT_MAX_RETRIES + 1):
+    for attempt in range(1, _get_boot_max_retries() + 1):
         _status8_detected = False
         _proxy = get_proxy()
         proxy_arg = _proxy if _proxy else None
@@ -45,12 +53,12 @@ async def _boot():
                 window=(1920, 1080),
                 proxy=proxy_arg,
                 i_know_what_im_doing=True,
-                config={
-                    "geolocation:latitude": 53.6252,
-                    "geolocation:longitude": -9.2166,
-                    "locale:language": "en",
-                    "locale:region": "IE",
-                    "timezone": "Europe/Dublin",
+                config={ # I'm manually setting these becuase my account on TikTok is Irish and I'm using rotating Irish residential proxies, GeoIP sometimes fucks up the accuracy so i'm ovveriding these, change these yourself or drop them if you are using a different method
+                    "geolocation:latitude": float(get_secret("DTKT_GEO_LATITUDE")),
+                    "geolocation:longitude": float(get_secret("DTKT_GEO_LONGITUDE")),
+                    "locale:language": get_secret("DTKT_GEO_LANGUAGE"),
+                    "locale:region": get_secret("DTKT_GEO_REGION"),
+                    "timezone": get_secret("DTKT_GEO_TIMEZONE"),
                 },
             )
             _browser = await _camoufox_cm.__aenter__()
@@ -73,7 +81,7 @@ async def _boot():
             last_err = exc
             logger.warning("boot-failed", attempt=attempt, error=str(exc))
             await _teardown()
-            if attempt < BOOT_MAX_RETRIES:
+            if attempt < _get_boot_max_retries():
                 await asyncio.sleep(2)
     raise last_err
 
@@ -126,7 +134,7 @@ def get_page():
 def needs_reboot() -> bool:
     if _status8_detected:
         return True
-    if _started_at and (time.monotonic() - _started_at) >= SESSION_TTL:
+    if _started_at and (time.monotonic() - _started_at) >= _get_session_ttl():
         return True
     return False
 
@@ -138,7 +146,7 @@ def check_status8() -> bool:
 async def _rotation_loop():
     while True:
         await asyncio.sleep(60)
-        if _started_at and (time.monotonic() - _started_at) >= SESSION_TTL:
+        if _started_at and (time.monotonic() - _started_at) >= _get_session_ttl():
             await reboot_session()
 
 

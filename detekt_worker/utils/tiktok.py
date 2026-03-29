@@ -19,14 +19,22 @@ _api: TikTokApi | None = None
 _last_min_time: int = 0
 _session_created_at: float = 0
 
-MAX_SESSION_RETRIES = 2
-SENTRY_FLUSH_TIMEOUT = 2
-SESSION_MAX_AGE_SECONDS = 45 * 60
+
+def _get_max_session_retries() -> int:
+    return int(get_secret("DTKT_MAX_SESSION_RETRIES"))
+
+
+def _get_sentry_flush_timeout() -> int:
+    return int(get_secret("DTKT_SENTRY_FLUSH_TIMEOUT"))
+
+
+def _get_session_max_age() -> int:
+    return int(get_secret("DTKT_SESSION_MAX_AGE_SECONDS"))
 
 
 def _report(exc: Exception) -> None:
     sentry_sdk.capture_exception(exc)
-    sentry_sdk.flush(timeout=SENTRY_FLUSH_TIMEOUT)
+    sentry_sdk.flush(timeout=_get_sentry_flush_timeout())
 
 
 VIDEO_AWEME_TYPES = {0, 4, 51, 55, 58, 61}
@@ -65,13 +73,14 @@ async def ensure_session(force_fresh: bool = False) -> TikTokApi:
 
     if _api is not None and not force_fresh:
         age = time.monotonic() - _session_created_at
-        if age < SESSION_MAX_AGE_SECONDS:
+        if age < _get_session_max_age():
             return _api
         logger.info("dtkt-session-stale-rotating", age_seconds=int(age))
         await close_session()
 
     last_exc = None
-    for attempt in range(1, MAX_SESSION_RETRIES + 1):
+    max_retries = _get_max_session_retries()
+    for attempt in range(1, max_retries + 1):
         try:
             _api = TikTokApi()
 
@@ -128,7 +137,7 @@ async def ensure_session(force_fresh: bool = False) -> TikTokApi:
             logger.warning(
                 "dtkt-session-create-retry",
                 attempt=attempt,
-                max_attempts=MAX_SESSION_RETRIES,
+                max_attempts=max_retries,
                 error=str(exc),
             )
             if _api is not None:
@@ -142,13 +151,13 @@ async def ensure_session(force_fresh: bool = False) -> TikTokApi:
                     pass
                 _api = None
 
-            if attempt < MAX_SESSION_RETRIES:
+            if attempt < max_retries:
                 backoff = min(5 * attempt, 30)
                 await asyncio.sleep(backoff)
 
     _report(last_exc)
     logger.error(
-        "dtkt-session-create-failed-all-attempts", attempts=MAX_SESSION_RETRIES
+        "dtkt-session-create-failed-all-attempts", attempts=max_retries
     )
     raise last_exc
 
@@ -175,7 +184,7 @@ async def close_session() -> None:
 async def poll_mentions() -> list[dict]:
     global _last_min_time
 
-    for attempt in range(MAX_SESSION_RETRIES + 1):
+    for attempt in range(_get_max_session_retries() + 1):
         api = await ensure_session()
         try:
             data = await api.make_request(
@@ -199,7 +208,7 @@ async def poll_mentions() -> list[dict]:
             )
             status = data.get("status_code", 0)
             if status in (3102, 3006, 8):
-                if attempt < MAX_SESSION_RETRIES:
+                if attempt < _get_max_session_retries():
                     logger.warning(
                         "dtkt-login-expired-retrying",
                         status=status,
@@ -212,7 +221,7 @@ async def poll_mentions() -> list[dict]:
                     return []
             break
         except Exception as exc:
-            if attempt < MAX_SESSION_RETRIES:
+            if attempt < _get_max_session_retries():
                 logger.warning(
                     "dtkt-poll-failed-retrying",
                     attempt=attempt + 1,
@@ -288,7 +297,7 @@ def is_supported_aweme(aweme_type: int) -> bool:
 
 
 async def get_video_info(video_id: str) -> dict | None:
-    for attempt in range(MAX_SESSION_RETRIES + 1):
+    for attempt in range(_get_max_session_retries() + 1):
         api = await ensure_session()
         try:
             url = f"https://www.tiktok.com/@_/video/{video_id}"
@@ -304,7 +313,7 @@ async def get_video_info(video_id: str) -> dict | None:
                 )
             return data
         except Exception as exc:
-            if attempt < MAX_SESSION_RETRIES:
+            if attempt < _get_max_session_retries():
                 logger.warning(
                     "dtkt-video-info-retrying",
                     vid=video_id,

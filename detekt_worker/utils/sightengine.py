@@ -15,8 +15,13 @@ _lock = threading.Lock()
 _last_used: float = 0
 _last_init: float = 0
 
-DTKT_CLIENT_REFRESH_INTERVAL = 120
-_MIN_INTERVAL = 1.0
+
+def _get_refresh_interval() -> int:
+    return int(get_secret("DTKT_SIGHTENGINE_REFRESH_INTERVAL"))
+
+
+def _get_min_interval() -> float:
+    return float(get_secret("DTKT_SIGHTENGINE_MIN_INTERVAL"))
 
 
 def _build_client() -> SightengineClient:
@@ -33,7 +38,7 @@ def _get_client() -> SightengineClient:
         with _lock:
             now = time.monotonic()
             needs_refresh = (
-                _client is None or (now - _last_init) > DTKT_CLIENT_REFRESH_INTERVAL
+                _client is None or (now - _last_init) > _get_refresh_interval()
             )
 
             if needs_refresh:
@@ -41,11 +46,12 @@ def _get_client() -> SightengineClient:
                 _last_init = now
 
             elapsed = now - _last_used
-            if elapsed >= _MIN_INTERVAL:
+            min_interval = _get_min_interval()
+            if elapsed >= min_interval:
                 _last_used = now
                 return _client
 
-            wait_needed = _MIN_INTERVAL - elapsed
+            wait_needed = min_interval - elapsed
 
         logger.debug("dtkt-sightengine-rate-wait", wait=f"{wait_needed:.2f}s")
         time.sleep(wait_needed)

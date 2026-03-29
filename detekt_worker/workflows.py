@@ -13,8 +13,7 @@ with workflow.unsafe.imports_passed_through():
         reply_with_result,
         get_poll_interval,
     )
-
-DTKT_MAX_POLLS_BEFORE_CAN = 50
+    from utils.secrets import get_secret
 
 
 @workflow.defn
@@ -68,7 +67,8 @@ class ProcessMentionWorkflow:
 class PollerWorkflow:
     @workflow.run
     async def run(self, poll_interval_seconds: int) -> None:
-        for _ in range(DTKT_MAX_POLLS_BEFORE_CAN):
+        max_polls = int(get_secret("DTKT_MAX_POLLS_BEFORE_CAN"))
+        for _ in range(max_polls):
             mentions = await workflow.execute_activity(
                 poll_tiktok_mentions,
                 start_to_close_timeout=timedelta(minutes=5),

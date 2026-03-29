@@ -29,7 +29,7 @@ structlog.configure(
 
 logger = structlog.get_logger()
 
-DTKT_TASK_QUEUE = "dtkt-task-queue"
+DTKT_TASK_QUEUE = get_secret("DTKT_WORKER_TASK_QUEUE")
 
 
 def _init_sentry() -> None:

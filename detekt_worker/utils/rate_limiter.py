@@ -12,14 +12,16 @@ _redis_url: str | None = None
 _redis_token: str | None = None
 _redis_last_check: float = 0
 
-DTKT_REDIS_REFRESH_INTERVAL = 120
+
+def _get_redis_refresh_interval() -> int:
+    return int(get_secret("DTKT_REDIS_REFRESH_INTERVAL"))
 
 
 def _get_redis() -> Redis:
     global _redis, _redis_url, _redis_token, _redis_last_check
 
     now = time.monotonic()
-    if _redis is not None and (now - _redis_last_check) < DTKT_REDIS_REFRESH_INTERVAL:
+    if _redis is not None and (now - _redis_last_check) < _get_redis_refresh_interval():
         return _redis
 
     dtkt_upstash_url = get_secret("DTKT_UPSTASH_REDIS_URL")
