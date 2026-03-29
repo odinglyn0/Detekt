@@ -6,10 +6,6 @@ The worker uses a `sessionid` cookie (`DTKT_TT_SESSIONID` in Doppler). When TikT
 
 The replier uses a Netscape cookie file in GCS (`DTKT_GCS_COOKIES_PATH`) — upload a fresh one there.
 
-## Sightengine account pool
-
-If you hit rate limits, add more accounts to the `DTKT_SIGHTENGINE_ACCS` JSON map in Doppler. The client pool rebuilds every 2 minutes automatically.
-
 ## Session reboots
 
 The replier's Camoufox browser session rotates every 12 hours and reboots immediately on TikTok status-8 responses. If replies start failing consistently, check Sentry for `SessionRebootError` patterns — usually means cookies are stale.
@@ -25,3 +21,6 @@ State is local (`terraform/terraform.tfstate`). Back it up or migrate to a remot
 ## Debug screenshots
 
 Set `DTKT_DBG_ENA=true` and `DTKT_GCS_DBGSC_PATH` in Doppler to capture 0.5s-interval screenshots of the replier's browser session to GCS. Useful for diagnosing reply failures.
+
+## Pushing
+Run black . on all of your code, and do not PR or push with any code comments, I hate code comments.

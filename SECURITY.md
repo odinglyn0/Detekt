@@ -6,7 +6,7 @@ This project handles TikTok session cookies, API keys, and service account crede
 - Proxy credentials rotate on every request via the Webshare pool — no hardcoded IPs.
 - GCS media is auto-deleted after 7 days via bucket lifecycle rules.
 - Worker and replier run under separate GCP service accounts with least-privilege IAM roles (worker gets storage admin + firestore, replier only gets storage read/write).
-- Sightengine API keys support account pooling with round-robin + rate spacing to avoid key exhaustion.
+- Sightengine API calls are rate-limited to 1 request per second.
 - The replier's TikTok cookies are stored in GCS (not baked into the image) and loaded at boot.
 
 ## Reporting a vulnerability
