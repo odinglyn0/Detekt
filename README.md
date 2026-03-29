@@ -10,7 +10,6 @@
 ```
 
 > **TikTok AI & deepfake detection bot. Mention it on a video or slideshow, get a verdict.**
-> Sightengine does the scanning. This just orchestrates it.
 
 <p>
 <img src="https://img.shields.io/badge/python-3.12-3776AB?style=flat-square&logo=python&logoColor=white" />
