@@ -13,6 +13,7 @@ class ReplyInput:
     aweme_id: str
     comment_id: str
     initiator: str
+    initiator_id: str
     message: str
     username: str
 

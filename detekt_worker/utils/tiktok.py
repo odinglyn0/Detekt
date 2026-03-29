@@ -251,6 +251,7 @@ async def poll_mentions() -> list[dict]:
                 "comment_id": comment.get("cid", ""),
                 "comment_text": at.get("content", ""),
                 "username": user_info.get("unique_id", ""),
+                "user_id": str(user_info.get("uid", "")),
                 "video_owner": author.get("unique_id", ""),
                 "aweme_type": aweme.get("aweme_type"),
                 "nid": n.get("nid", ""),

@@ -225,9 +225,9 @@ def format_result(
         conf = ai_pct
         return random.choice(
             [
-                f"@{tagger} yep, that's AI ({conf:.0f}% sure)",
-                f"@{tagger} AI generated. {conf:.0f}% confident.",
-                f"@{tagger} AI. {conf:.0f}%.",
+                f"yep, that's AI ({conf:.0f}% sure)",
+                f"AI generated. {conf:.0f}% confident.",
+                f"AI. {conf:.0f}%.",
             ]
         )
 
@@ -235,8 +235,8 @@ def format_result(
         conf = df_pct
         return random.choice(
             [
-                f"@{tagger} real {type_label} but the face is swapped ({conf:.0f}% sure)",
-                f"@{tagger} deepfake detected. {conf:.0f}% confident.",
+                f"real {type_label} but the face is swapped ({conf:.0f}% sure)",
+                f"deepfake detected. {conf:.0f}% confident.",
             ]
         )
 
@@ -244,16 +244,16 @@ def format_result(
     if low_min <= top_score <= low_max:
         return random.choice(
             [
-                f"@{tagger} not sure on this one ({top_score:.0f}% AI generated/manipulated)",
-                f"@{tagger} inconclusive. {top_score:.0f}% AI generated/manipulated.",
+                f"not sure on this one ({top_score:.0f}% AI generated/manipulated)",
+                f"inconclusive. {top_score:.0f}% AI generated/manipulated.",
             ]
         )
 
     real_conf = (1 - ai_score) * 100
     return random.choice(
         [
-            f"@{tagger} looks real to me ({real_conf:.0f}% sure)",
-            f"@{tagger} it's not AI. {real_conf:.0f}% confident.",
-            f"@{tagger} real. {real_conf:.0f}%.",
+            f"looks real to me ({real_conf:.0f}% sure)",
+            f"it's not AI. {real_conf:.0f}% confident.",
+            f"real. {real_conf:.0f}%.",
         ]
     )

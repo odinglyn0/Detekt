@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import time
 from browser import (
     get_page,
     reboot_session,
@@ -32,6 +33,7 @@ async def reply_to_comment(
         dbg = DebugScreenshots(page, prefix=f"{aweme_id}-{comment_id}")
         dbg.start()
         try:
+            t0 = time.monotonic()
             url = build_video_url(username, aweme_id, comment_id)
             logger.info(
                 "reply-start",
@@ -39,10 +41,26 @@ async def reply_to_comment(
                 comment_id=comment_id,
                 initiator=initiator,
             )
+            await page.route("**/*.{mp4,webm,m3u8,ts,m4s}", lambda route: route.abort())
+            await page.route("**/*.{jpg,jpeg,png,gif,webp,svg,ico}", lambda route: route.abort())
+            await page.route("**/*.{woff,woff2,ttf,otf,eot}", lambda route: route.abort())
+            await page.route("**/*.css", lambda route: route.abort())
+            await page.route("**/media/**", lambda route: route.abort())
+            await page.route("**/analytics/**", lambda route: route.abort())
+            await page.route("**/slardar/**", lambda route: route.abort())
+            await page.route("**/mon/**", lambda route: route.abort())
+            await page.route("**/log/**", lambda route: route.abort())
+            await page.route("**/xgplayer/**", lambda route: route.abort())
+            await page.route("**/secsdk/**", lambda route: route.abort())
+            logger.info("reply-routes-set", elapsed=f"{time.monotonic()-t0:.2f}s")
 
             for attempt in range(3):
+                t1 = time.monotonic()
                 await page.goto(url, wait_until="domcontentloaded")
-                await asyncio.sleep(1)
+                logger.info("reply-page-goto-done", elapsed=f"{time.monotonic()-t1:.2f}s", attempt=attempt+1)
+
+                t2 = time.monotonic()
+                await asyncio.sleep(0.5)
 
                 trouble = page.locator(
                     'text="We\'re having trouble playing this video"'
@@ -60,23 +78,56 @@ async def reply_to_comment(
                         )
                 break
 
+            t3 = time.monotonic()
             first_comment = page.locator(
                 '[class*="DivCommentListContainer"] [class*="DivCommentObjectWrapper"]'
             ).first
             await first_comment.wait_for(state="visible", timeout=10000)
+            logger.info("reply-comment-visible", elapsed=f"{time.monotonic()-t3:.2f}s")
 
+            t4 = time.monotonic()
             reply_btn = first_comment.locator('[data-e2e="comment-reply-1"]')
-            await reply_btn.scroll_into_view_if_needed()
-            await reply_btn.click(force=True)
-            await asyncio.sleep(0.3)
+            await reply_btn.dispatch_event("click")
+            await asyncio.sleep(0.15)
+            logger.info("reply-btn-clicked", elapsed=f"{time.monotonic()-t4:.2f}s")
 
+            t5 = time.monotonic()
             editor = page.locator(
                 '[data-e2e="comment-input"] [contenteditable="true"]'
             ).first
             await editor.wait_for(state="visible", timeout=5000)
             await editor.click(force=True)
-            await page.keyboard.type(message, delay=20)
+            logger.info("reply-editor-ready", elapsed=f"{time.monotonic()-t5:.2f}s")
 
+            t6 = time.monotonic()
+            await page.keyboard.type(f"@{initiator}", delay=50)
+            logger.info("reply-mention-typed", elapsed=f"{time.monotonic()-t6:.2f}s", chars=len(initiator)+1)
+
+            await asyncio.sleep(0.5)
+
+            t7 = time.monotonic()
+            mention_item = page.locator('[data-e2e="comment-at-list"][data-index="0"]').first
+            try:
+                await mention_item.wait_for(state="visible", timeout=5000)
+                logger.info("reply-popover-visible", elapsed=f"{time.monotonic()-t7:.2f}s")
+                await mention_item.click(force=True)
+                await asyncio.sleep(0.15)
+                logger.info("mention-selected", initiator=initiator, aweme_id=aweme_id)
+            except Exception as exc:
+                logger.warning(
+                    "mention-popover-failed",
+                    initiator=initiator,
+                    aweme_id=aweme_id,
+                    elapsed=f"{time.monotonic()-t7:.2f}s",
+                    error=str(exc),
+                )
+                await page.keyboard.type(" ", delay=5)
+
+            t8 = time.monotonic()
+            await page.keyboard.type(message, delay=5)
+            logger.info("reply-message-typed", elapsed=f"{time.monotonic()-t8:.2f}s", chars=len(message))
+
+            t9 = time.monotonic()
             publish_future = asyncio.get_running_loop().create_future()
 
             async def on_response(response):
@@ -87,20 +138,25 @@ async def reply_to_comment(
             page.on("response", on_response)
 
             post_btn = page.locator('[data-e2e="comment-post"]').first
-            await post_btn.click(force=True)
+            await post_btn.dispatch_event("click")
+            logger.info("reply-post-btn-clicked", elapsed=f"{time.monotonic()-t9:.2f}s")
 
             try:
                 await asyncio.wait_for(publish_future, timeout=15)
+                logger.info("reply-publish-confirmed", elapsed=f"{time.monotonic()-t9:.2f}s")
             except asyncio.TimeoutError:
                 page.remove_listener("response", on_response)
                 logger.warning(
-                    "publish-timeout", aweme_id=aweme_id, comment_id=comment_id
+                    "publish-timeout", aweme_id=aweme_id, comment_id=comment_id,
+                    elapsed=f"{time.monotonic()-t9:.2f}s",
                 )
                 return False
 
             page.remove_listener("response", on_response)
             got_status8 = check_status8()
+            logger.info("reply-total-time", elapsed=f"{time.monotonic()-t0:.2f}s")
         finally:
+            await page.unroute_all()
             await dbg.stop()
 
     if got_status8:
