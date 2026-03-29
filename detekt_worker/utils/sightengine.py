@@ -12,15 +12,18 @@ import random
 logger = structlog.get_logger()
 
 _clients: list[SightengineClient] = []
+_client_last_used: list[float] = []
 _lock = threading.Lock()
 _index = 0
 _last_accs_hash: str | None = None
 _last_init: float = 0
 
 DTKT_CLIENT_REFRESH_INTERVAL = 120
+_MIN_INTERVAL = 1.1
 
 
 def _build_clients() -> list[SightengineClient]:
+    global _client_last_used
     clients = []
     dtkt_use_pool = get_secret("DTKT_SIGHTENGINE_ACC_POOL").lower() in (
         "true",
@@ -40,39 +43,60 @@ def _build_clients() -> list[SightengineClient]:
         clients.append(SightengineClient(api_user, api_secret))
         logger.info("dtkt-sightengine-single-init")
 
+    _client_last_used = [0.0] * len(clients)
     return clients
 
 
 def _get_client() -> SightengineClient:
-    global _clients, _index, _last_accs_hash, _last_init
+    global _clients, _index, _last_accs_hash, _last_init, _client_last_used
 
-    with _lock:
-        now = time.monotonic()
-        needs_refresh = (
-            not _clients or (now - _last_init) > DTKT_CLIENT_REFRESH_INTERVAL
-        )
+    while True:
+        with _lock:
+            now = time.monotonic()
+            needs_refresh = (
+                not _clients or (now - _last_init) > DTKT_CLIENT_REFRESH_INTERVAL
+            )
 
-        if needs_refresh:
-            try:
-                raw = (
-                    get_secret("DTKT_SIGHTENGINE_ACCS")
-                    if get_secret("DTKT_SIGHTENGINE_ACC_POOL").lower()
-                    in ("true", "1", "yes")
-                    else ""
-                )
-            except SystemExit:
-                raw = ""
+            if needs_refresh:
+                try:
+                    raw = (
+                        get_secret("DTKT_SIGHTENGINE_ACCS")
+                        if get_secret("DTKT_SIGHTENGINE_ACC_POOL").lower()
+                        in ("true", "1", "yes")
+                        else ""
+                    )
+                except SystemExit:
+                    raw = ""
 
-            if raw != _last_accs_hash or not _clients:
-                _clients = _build_clients()
-                _last_accs_hash = raw
+                if raw != _last_accs_hash or not _clients:
+                    _clients = _build_clients()
+                    _last_accs_hash = raw
 
-            _last_init = now
+                _last_init = now
 
-        client = _clients[_index % len(_clients)]
-        _index += 1
+            best_idx = None
+            best_wait = float("inf")
+            start = _index % len(_clients)
+            for i in range(len(_clients)):
+                idx = (start + i) % len(_clients)
+                elapsed = now - _client_last_used[idx]
+                if elapsed >= _MIN_INTERVAL:
+                    best_idx = idx
+                    break
+                wait = _MIN_INTERVAL - elapsed
+                if wait < best_wait:
+                    best_wait = wait
+                    best_idx = idx
 
-    return client
+            if now - _client_last_used[best_idx] >= _MIN_INTERVAL:
+                _client_last_used[best_idx] = now
+                _index = best_idx + 1
+                return _clients[best_idx]
+
+            wait_needed = best_wait
+
+        logger.debug("dtkt-sightengine-rate-wait", wait=f"{wait_needed:.2f}s")
+        time.sleep(wait_needed)
 
 
 def check_image(image_url: str) -> dict:

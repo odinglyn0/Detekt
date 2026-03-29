@@ -230,7 +230,8 @@ async def scan_media(request: ScanRequest) -> dict | None:
                 msg="quantity is 0, media download may have failed",
             )
             return None
-        if request.quantity > 5:
+        max_photos = int(get_secret("DTKT_MAX_CAROUSEL_PHOTOS"))
+        if request.quantity > max_photos:
             logger.info("dtkt-carousel-too-many", vid=request.vid, q=request.quantity)
             return None
 
