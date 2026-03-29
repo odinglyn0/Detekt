@@ -16,6 +16,7 @@ sentry_sdk.init(
 async def main():
     logger.info("dtkt-reply-worker-starting")
     from proxy import verify_proxy
+
     verify_proxy()
     await init_browser()
     try:

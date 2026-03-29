@@ -47,6 +47,10 @@ def verify_proxy():
         logger.info("proxy-disabled-skip-verify")
         return
     logger.info("webshare-proxy-verify", url=url.split("@")[1])
-    resp = requests.get("http://api.ipify.org/?format=json", proxies={"http": url, "https": url}, timeout=10)
+    resp = requests.get(
+        "http://api.ipify.org/?format=json",
+        proxies={"http": url, "https": url},
+        timeout=10,
+    )
     ip = resp.json().get("ip")
     logger.info("webshare-proxy-ip", ip=ip)

@@ -27,7 +27,9 @@ async def _ensure_routes(page):
     if _routes_installed:
         return
     await page.route("**/*.{mp4,webm,m3u8,ts,m4s}", lambda route: route.abort())
-    await page.route("**/*.{jpg,jpeg,png,gif,webp,svg,ico,avif}", lambda route: route.abort())
+    await page.route(
+        "**/*.{jpg,jpeg,png,gif,webp,svg,ico,avif}", lambda route: route.abort()
+    )
     await page.route("**/*.{woff,woff2,ttf,otf,eot}", lambda route: route.abort())
     await page.route("**/*.css", lambda route: route.abort())
     await page.route("**/v16-webapp-prime.tiktok.com/**", lambda route: route.abort())
@@ -71,7 +73,12 @@ async def reply_to_comment(
         try:
             t0 = time.monotonic()
             url = build_video_url(username, aweme_id, comment_id)
-            logger.info("reply-start", aweme_id=aweme_id, comment_id=comment_id, initiator=initiator)
+            logger.info(
+                "reply-start",
+                aweme_id=aweme_id,
+                comment_id=comment_id,
+                initiator=initiator,
+            )
 
             await _ensure_routes(page)
             logger.info("reply-routes-set", elapsed=f"{time.monotonic()-t0:.2f}s")
@@ -79,16 +86,26 @@ async def reply_to_comment(
             for attempt in range(3):
                 t1 = time.monotonic()
                 await page.goto(url, wait_until="domcontentloaded")
-                logger.info("reply-page-goto-done", elapsed=f"{time.monotonic()-t1:.2f}s", attempt=attempt+1)
+                logger.info(
+                    "reply-page-goto-done",
+                    elapsed=f"{time.monotonic()-t1:.2f}s",
+                    attempt=attempt + 1,
+                )
 
-                trouble = page.locator('text="We\'re having trouble playing this video"')
+                trouble = page.locator(
+                    'text="We\'re having trouble playing this video"'
+                )
                 if await trouble.count() > 0:
-                    logger.warning("video-load-failed", attempt=attempt+1, aweme_id=aweme_id)
+                    logger.warning(
+                        "video-load-failed", attempt=attempt + 1, aweme_id=aweme_id
+                    )
                     if attempt < 2:
                         await asyncio.sleep(0.1)
                         continue
                     else:
-                        raise Exception(f"Video failed to load after 3 attempts: {aweme_id}")
+                        raise Exception(
+                            f"Video failed to load after 3 attempts: {aweme_id}"
+                        )
                 break
 
             kb_close = page.locator('[class*="DivXMarkWrapper"]')
@@ -116,7 +133,9 @@ async def reply_to_comment(
             await asyncio.sleep(0.1)
 
             t5 = time.monotonic()
-            editor = page.locator('[data-e2e="comment-input"] [contenteditable="true"]').first
+            editor = page.locator(
+                '[data-e2e="comment-input"] [contenteditable="true"]'
+            ).first
             await editor.wait_for(state="visible", timeout=5000)
             logger.info("reply-editor-visible", elapsed=f"{time.monotonic()-t5:.2f}s")
 
@@ -129,15 +148,23 @@ async def reply_to_comment(
 
             t6 = time.monotonic()
             await page.keyboard.type(f"@{initiator}", delay=30)
-            logger.info("reply-mention-typed", elapsed=f"{time.monotonic()-t6:.2f}s", chars=len(initiator)+1)
+            logger.info(
+                "reply-mention-typed",
+                elapsed=f"{time.monotonic()-t6:.2f}s",
+                chars=len(initiator) + 1,
+            )
 
             await asyncio.sleep(0.1)
 
             t7 = time.monotonic()
-            mention_item = page.locator('[data-e2e="comment-at-list"][data-index="0"]').first
+            mention_item = page.locator(
+                '[data-e2e="comment-at-list"][data-index="0"]'
+            ).first
             try:
                 await mention_item.wait_for(state="visible", timeout=5000)
-                logger.info("reply-popover-visible", elapsed=f"{time.monotonic()-t7:.2f}s")
+                logger.info(
+                    "reply-popover-visible", elapsed=f"{time.monotonic()-t7:.2f}s"
+                )
 
                 await asyncio.sleep(0.1)
 
@@ -147,8 +174,13 @@ async def reply_to_comment(
                 await asyncio.sleep(0.1)
 
             except Exception as exc:
-                logger.warning("mention-popover-failed", initiator=initiator, aweme_id=aweme_id,
-                               elapsed=f"{time.monotonic()-t7:.2f}s", error=str(exc))
+                logger.warning(
+                    "mention-popover-failed",
+                    initiator=initiator,
+                    aweme_id=aweme_id,
+                    elapsed=f"{time.monotonic()-t7:.2f}s",
+                    error=str(exc),
+                )
                 await page.keyboard.type(" ", delay=5)
                 await asyncio.sleep(0.1)
 
@@ -156,7 +188,12 @@ async def reply_to_comment(
             wpm = random.randint(65, 120)
             typer = HumanTyper(wpm=wpm)
             await typer.type(editor, message)
-            logger.info("reply-message-typed", elapsed=f"{time.monotonic()-t8:.2f}s", chars=len(message), wpm=wpm)
+            logger.info(
+                "reply-message-typed",
+                elapsed=f"{time.monotonic()-t8:.2f}s",
+                chars=len(message),
+                wpm=wpm,
+            )
 
             await asyncio.sleep(0.1)
 
@@ -176,11 +213,17 @@ async def reply_to_comment(
 
             try:
                 await asyncio.wait_for(publish_future, timeout=15)
-                logger.info("reply-publish-confirmed", elapsed=f"{time.monotonic()-t9:.2f}s")
+                logger.info(
+                    "reply-publish-confirmed", elapsed=f"{time.monotonic()-t9:.2f}s"
+                )
             except asyncio.TimeoutError:
                 page.remove_listener("response", on_response)
-                logger.warning("publish-timeout", aweme_id=aweme_id, comment_id=comment_id,
-                               elapsed=f"{time.monotonic()-t9:.2f}s")
+                logger.warning(
+                    "publish-timeout",
+                    aweme_id=aweme_id,
+                    comment_id=comment_id,
+                    elapsed=f"{time.monotonic()-t9:.2f}s",
+                )
                 return False
 
             page.remove_listener("response", on_response)
@@ -205,7 +248,9 @@ async def reply_to_comment(
             await dbg.stop()
 
     if got_status8:
-        logger.warning("post-reply-status8-reboot", aweme_id=aweme_id, comment_id=comment_id)
+        logger.warning(
+            "post-reply-status8-reboot", aweme_id=aweme_id, comment_id=comment_id
+        )
         await reboot_session()
         reset_routes()
         raise SessionRebootError("status-8 during reply, retrying")

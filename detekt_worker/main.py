@@ -98,6 +98,7 @@ async def run() -> None:
         for sig in (signal.SIGINT, signal.SIGTERM):
             loop.add_signal_handler(sig, _handle_signal)
     except NotImplementedError:
+
         def _sync_handler(signum, frame):
             loop.call_thread_safe(shutdown_event.set)
             logger.info("dtkt-shutdown-requested")

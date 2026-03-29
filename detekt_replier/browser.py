@@ -40,7 +40,7 @@ async def _boot():
                 headless=False,
                 humanize=True,
                 geoip=False,
-                os=('windows', 'macos', 'linux'),
+                os=("windows", "macos", "linux"),
                 screen=Screen(max_width=1920, max_height=1080),
                 window=(1920, 1080),
                 proxy=proxy_arg,
@@ -51,7 +51,7 @@ async def _boot():
                     "locale:language": "en",
                     "locale:region": "IE",
                     "timezone": "Europe/Dublin",
-                }
+                },
             )
             _browser = await _camoufox_cm.__aenter__()
             if _browser.contexts:
@@ -63,7 +63,9 @@ async def _boot():
             _page = await _context.new_page()
             await _page.set_viewport_size({"width": 1920, "height": 1080})
             _attach_status8_listener(_page)
-            await _page.goto("https://www.tiktok.com/explore", wait_until="domcontentloaded")
+            await _page.goto(
+                "https://www.tiktok.com/explore", wait_until="domcontentloaded"
+            )
             _started_at = time.monotonic()
             logger.info("camoufox-booted", attempt=attempt)
             return
