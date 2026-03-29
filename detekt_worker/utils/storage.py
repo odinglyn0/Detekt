@@ -8,7 +8,8 @@ from google.cloud import storage as gcs
 import structlog
 
 from utils.gcp_credentials import get_credentials, get_project_id
-from utils.secrets import get_secret, get_secret_optional
+from utils.secrets import get_secret
+from utils.webshare import get_proxy_url
 
 logger = structlog.get_logger()
 
@@ -52,16 +53,12 @@ def _guess_extension(url: str, content_type: str | None) -> str:
     return "mp4"
 
 
-def _get_proxy_url() -> str | None:
-    return get_secret_optional("DTKT_PROXY") or None
-
-
 async def upload_video(
     video_id: str, download_url: str, headers: dict | None = None
 ) -> str:
     bucket = _get_bucket()
 
-    proxy = _get_proxy_url()
+    proxy = get_proxy_url()
     async with httpx.AsyncClient(proxy=proxy) as client:
         if not isinstance(download_url, str):
             raise ValueError(
@@ -100,7 +97,7 @@ async def upload_slideshow_images(
     paths = []
     original_indices = []
 
-    proxy = _get_proxy_url()
+    proxy = get_proxy_url()
     async with httpx.AsyncClient(proxy=proxy) as client:
         for idx, url in enumerate(image_urls, start=1):
             if not isinstance(url, str):

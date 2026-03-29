@@ -40,6 +40,8 @@ localtests/
 
 test.py
 
+*.har
+
 .env
 .envrc
 .venv/

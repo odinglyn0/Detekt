@@ -5,3 +5,4 @@ google-cloud-storage
 playwright==1.58.0
 sentry-sdk
 structlog
+webshareproxy==0.0.10

@@ -10,9 +10,8 @@ import yt_dlp
 import tempfile
 import os
 
-from urllib.parse import urlparse
-
-from utils.secrets import get_secret, get_secret_optional
+from utils.webshare import get_proxy, get_proxy_url
+from utils.secrets import get_secret
 
 logger = structlog.get_logger()
 
@@ -99,19 +98,8 @@ async def ensure_session(force_fresh: bool = False) -> TikTokApi:
                     await asyncio.sleep(0.5)
                 return page
 
-            raw_proxy = get_secret_optional("DTKT_PROXY") or None
-            proxies = None
-            if raw_proxy:
-                parsed = urlparse(raw_proxy)
-                proxy_dict = {
-                    "server": f"{parsed.scheme}://{parsed.hostname}:{parsed.port}"
-                }
-                if parsed.username:
-                    proxy_dict["username"] = parsed.username
-                if parsed.password:
-                    proxy_dict["password"] = parsed.password
-                proxies = [proxy_dict]
-                logger.info("dtkt-session-using-proxy", server=proxy_dict["server"])
+            proxies = [get_proxy()]
+            logger.info("dtkt-session-using-proxy", server=proxies[0]["server"])
 
             await _api.create_sessions(
                 num_sessions=1,
@@ -384,7 +372,7 @@ def extract_slideshow_image_urls(aweme: dict) -> list[str]:
 
 
 async def download_video_bytes(video_id: str) -> bytes | None:
-    proxy_url = get_secret_optional("DTKT_PROXY") or None
+    proxy_url = get_proxy_url()
     url = f"https://www.tiktok.com/@_/video/{video_id}"
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -392,9 +380,8 @@ async def download_video_bytes(video_id: str) -> bytes | None:
             "outtmpl": os.path.join(tmpdir, "%(id)s.%(ext)s"),
             "quiet": True,
             "no_warnings": True,
+            "proxy": proxy_url,
         }
-        if proxy_url:
-            ydl_opts["proxy"] = proxy_url
 
         try:
             loop = asyncio.get_event_loop()

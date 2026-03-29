@@ -1,27 +1,14 @@
 import asyncio
 import time
-from urllib.parse import urlparse
 import sentry_sdk
 from browserforge.fingerprints import Screen
 from camoufox.async_api import AsyncCamoufox
 from cookies import load_cookies
-from config import PROXY_URL
+from webshare import get_proxy
 from log import logger
 
 
-def _parse_proxy(url: str) -> dict | None:
-    if not url:
-        return None
-    parsed = urlparse(url)
-    proxy = {"server": f"{parsed.scheme}://{parsed.hostname}:{parsed.port}"}
-    if parsed.username:
-        proxy["username"] = parsed.username
-    if parsed.password:
-        proxy["password"] = parsed.password
-    return proxy
-
-
-_proxy = _parse_proxy(PROXY_URL)
+_proxy = get_proxy()
 
 SESSION_TTL = 12 * 60 * 60
 
@@ -53,16 +40,16 @@ async def _boot():
         proxy=_proxy,
     )
     _browser = await _camoufox_cm.__aenter__()
-    _context = (
-        _browser.contexts[0] if _browser.contexts else await _browser.new_context()
-    )
+    if _browser.contexts:
+        _context = _browser.contexts[0]
+    else:
+        _context = await _browser.new_context()
     cookies = load_cookies()
     await _context.add_cookies(cookies)
     _page = await _context.new_page()
     await _page.set_viewport_size({"width": 1920, "height": 1080})
     _attach_status8_listener(_page)
-    await _page.goto("https://www.tiktok.com/explore")
-    await _page.wait_for_load_state("load")
+    await _page.goto("https://www.tiktok.com/explore", wait_until="domcontentloaded")
     _started_at = time.monotonic()
     logger.info("camoufox-booted")
 
