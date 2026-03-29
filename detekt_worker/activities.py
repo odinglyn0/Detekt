@@ -160,8 +160,15 @@ async def validate_and_download_media(mention: MentionData) -> ScanRequest | Non
                 has_image_post_info="image_post_info" in aweme,
                 has_imagePost="imagePost" in aweme,
             )
-        else:
-            logger.warning("dtkt-video-info-returned-none", vid=mention.aweme_id)
+        if not image_urls and mention.image_urls:
+            image_urls = mention.image_urls
+            logger.info(
+                "dtkt-using-notification-image-urls",
+                vid=mention.aweme_id,
+                count=len(image_urls),
+            )
+        if not image_urls:
+            logger.warning("dtkt-no-image-urls", vid=mention.aweme_id)
 
     quantity = None
     uploaded_indices = None

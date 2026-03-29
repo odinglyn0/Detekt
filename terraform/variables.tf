@@ -17,7 +17,7 @@ variable "dtkt_gcp_zone" {
 
 variable "dtkt_worker_machine_type" {
   type        = string
-  default     = "e2-standard-2"
+  default     = "c2-standard-4"
   description = "Worker VM machine type"
 }
 

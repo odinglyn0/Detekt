@@ -7,6 +7,8 @@ import structlog
 
 from utils.secrets import get_secret
 
+import random
+
 logger = structlog.get_logger()
 
 _clients: list[SightengineClient] = []
@@ -144,7 +146,8 @@ def format_carousel_result(
             if low_min <= top <= low_max:
                 parts.append(f"#{idx}: unsure ({top:.0f}%)")
             else:
-                parts.append(f"#{idx}: real ({ai_pct:.0f}%)")
+                real_conf = (1 - r["ai_score"]) * 100
+                parts.append(f"#{idx}: real ({real_conf:.0f}%)")
 
     return f"@{tagger} " + ", ".join(parts)
 
@@ -157,8 +160,6 @@ def format_result(
     is_deepfake: bool,
     deepfake_score: float,
 ) -> str:
-    import random
-
     type_label = "photo" if media_type == "photo" else "video"
     ai_pct = ai_score * 100
     df_pct = deepfake_score * 100
@@ -167,19 +168,21 @@ def format_result(
     low_max = float(get_secret("DTKT_LOW_CONFIDENCE_MAX"))
 
     if is_ai and ai_pct > low_max:
+        conf = ai_pct
         return random.choice(
             [
-                f"@{tagger} yep, that's AI ({ai_pct:.0f}% sure)",
-                f"@{tagger} AI generated. {ai_pct:.0f}% confident.",
-                f"@{tagger} AI. {ai_pct:.0f}%.",
+                f"@{tagger} yep, that's AI ({conf:.0f}% sure)",
+                f"@{tagger} AI generated. {conf:.0f}% confident.",
+                f"@{tagger} AI. {conf:.0f}%.",
             ]
         )
 
     if is_deepfake and df_pct > low_max:
+        conf = df_pct
         return random.choice(
             [
-                f"@{tagger} real {type_label} but the face is swapped ({df_pct:.0f}% sure)",
-                f"@{tagger} deepfake detected. {df_pct:.0f}% confident.",
+                f"@{tagger} real {type_label} but the face is swapped ({conf:.0f}% sure)",
+                f"@{tagger} deepfake detected. {conf:.0f}% confident.",
             ]
         )
 
@@ -192,10 +195,11 @@ def format_result(
             ]
         )
 
+    real_conf = (1 - ai_score) * 100
     return random.choice(
         [
-            f"@{tagger} looks real to me ({ai_pct:.0f}% sure)",
-            f"@{tagger} it's not AI. {ai_pct:.0f}% confident.",
-            f"@{tagger} real. {ai_pct:.0f}% AI.",
+            f"@{tagger} looks real to me ({real_conf:.0f}% sure)",
+            f"@{tagger} it's not AI. {real_conf:.0f}% confident.",
+            f"@{tagger} real. {real_conf:.0f}%.",
         ]
     )

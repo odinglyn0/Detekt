@@ -36,16 +36,19 @@ def _scans_collection() -> str:
 
 async def get_cached_result(media_id: str) -> dict | None:
     db = _get_db()
-    doc = await db.collection(_scans_collection()).document(media_id).get()
-    if not doc.exists:
+    query = (
+        db.collection(_scans_collection())
+        .where("dtkt_media_id", "==", media_id)
+        .where("dtkt_status", "==", "complete")
+        .limit(1)
+    )
+    docs = [doc async for doc in query.stream()]
+    if not docs:
         return None
 
-    data = doc.to_dict()
-    if data.get("dtkt_status") == "complete":
-        logger.info("dtkt-cache-hit", media_id=media_id)
-        return data
-
-    return None
+    data = docs[0].to_dict()
+    logger.info("dtkt-cache-hit", media_id=media_id)
+    return data
 
 
 async def is_known(media_id: str) -> bool:
@@ -121,7 +124,7 @@ async def store_scan_result(
     raw_response: dict,
 ) -> None:
     db = _get_db()
-    doc_ref = db.collection(_scans_collection()).document(media_id)
+    doc_ref = db.collection(_scans_collection()).document(cid)
     await doc_ref.set(
         {
             "dtkt_status": "complete",
@@ -140,4 +143,4 @@ async def store_scan_result(
             "dtkt_created_at": firestore_types.SERVER_TIMESTAMP,
         }
     )
-    logger.info("dtkt-firestore-stored", media_id=media_id, ai_score=ai_score)
+    logger.info("dtkt-firestore-stored", cid=cid, media_id=media_id, ai_score=ai_score)

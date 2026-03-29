@@ -6,6 +6,12 @@ import sentry_sdk
 from TikTokApi import TikTokApi
 import structlog
 
+import yt_dlp
+import tempfile
+import os
+
+from urllib.parse import urlparse
+
 from utils.secrets import get_secret, get_secret_optional
 
 logger = structlog.get_logger()
@@ -96,9 +102,10 @@ async def ensure_session(force_fresh: bool = False) -> TikTokApi:
             raw_proxy = get_secret_optional("DTKT_PROXY") or None
             proxies = None
             if raw_proxy:
-                from urllib.parse import urlparse
                 parsed = urlparse(raw_proxy)
-                proxy_dict = {"server": f"{parsed.scheme}://{parsed.hostname}:{parsed.port}"}
+                proxy_dict = {
+                    "server": f"{parsed.scheme}://{parsed.hostname}:{parsed.port}"
+                }
                 if parsed.username:
                     proxy_dict["username"] = parsed.username
                 if parsed.password:
@@ -113,7 +120,8 @@ async def ensure_session(force_fresh: bool = False) -> TikTokApi:
                 headless=True,
                 page_factory=_page_factory,
                 proxies=proxies,
-                timeout=60000,
+                timeout=120000,
+                suppress_resource_load_types=["image", "media", "font", "stylesheet"],
             )
             _session_created_at = time.monotonic()
             token = await _extract_ms_token(_api)
@@ -261,13 +269,6 @@ async def poll_mentions() -> list[dict]:
                 )
                 mention["image_urls"] = []
                 images = image_post.get("images", [])
-                if images:
-                    logger.info(
-                        "dtkt-slideshow-raw-sample",
-                        vid=mention["aweme_id"],
-                        image_keys=list(images[0].keys()) if images else [],
-                        sample=str(images[0])[:500] if images else "empty",
-                    )
                 for img in images:
                     url = _extract_image_url(img)
                     if url:
@@ -380,34 +381,37 @@ def extract_slideshow_image_urls(aweme: dict) -> list[str]:
         )
     return urls
 
+
 async def download_video_bytes(video_id: str) -> bytes | None:
-    from tiktokdl.download_post import get_post, TikTokVideo
-    import os
-
     proxy_url = get_secret_optional("DTKT_PROXY") or None
-    proxy = None
-    if proxy_url:
-        from urllib.parse import urlparse
-        parsed = urlparse(proxy_url)
-        proxy = {"server": f"{parsed.scheme}://{parsed.hostname}:{parsed.port}"}
-        if parsed.username:
-            proxy["username"] = parsed.username
-        if parsed.password:
-            proxy["password"] = parsed.password
-
     url = f"https://www.tiktok.com/@_/video/{video_id}"
-    try:
-        result = await get_post(url, download=True, proxy=proxy, headless=True)
-        if not isinstance(result, TikTokVideo) or not result.file_path:
-            logger.warning("dtkt-video-download-not-video", vid=video_id)
-            return None
-        with open(result.file_path, "rb") as f:
-            data = f.read()
-        os.remove(result.file_path)
-        logger.info("dtkt-video-downloaded", vid=video_id, size=len(data))
-        return data
-    except Exception as exc:
-        _report(exc)
-        logger.warning("dtkt-video-download-error", vid=video_id, error=str(exc))
-        return None
 
+    with tempfile.TemporaryDirectory() as tmpdir:
+        ydl_opts = {
+            "outtmpl": os.path.join(tmpdir, "%(id)s.%(ext)s"),
+            "quiet": True,
+            "no_warnings": True,
+        }
+        if proxy_url:
+            ydl_opts["proxy"] = proxy_url
+
+        try:
+            loop = asyncio.get_event_loop()
+
+            def _download():
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    ydl.download([url])
+
+            await loop.run_in_executor(None, _download)
+            files = os.listdir(tmpdir)
+            if not files:
+                logger.warning("dtkt-video-download-no-file", vid=video_id)
+                return None
+            with open(os.path.join(tmpdir, files[0]), "rb") as f:
+                data = f.read()
+            logger.info("dtkt-video-downloaded", vid=video_id, size=len(data))
+            return data
+        except Exception as exc:
+            _report(exc)
+            logger.warning("dtkt-video-download-error", vid=video_id, error=str(exc))
+            return None
