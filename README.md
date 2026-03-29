@@ -149,16 +149,20 @@ This builds Docker images, pushes to GCR, and runs `terraform apply` with auto-a
 | `DTKT_TEMPORAL_NAMESPACE` | Temporal namespace |
 | `DTKT_TEMPORAL_API_KEY` | Temporal API key |
 | `DTKT_TEMPORAL_TASK_QUEUE` | Replier's Temporal task queue name |
+| `DTKT_WORKER_TASK_QUEUE` | Worker's own Temporal task queue name |
 | `DTKT_POLL_INTERVAL_SECONDS` | Polling interval |
 | `DTKT_TRIGGER_WORD` | Word that triggers the bot in comments |
 | `DTKT_USER_BLACKLIST` | Comma-separated usernames to ignore |
 | `DTKT_TT_SESSIONID` | TikTok session cookie |
 | `DTKT_SENTRY_DSN` | Sentry DSN |
+| `DTKT_SENTRY_FLUSH_TIMEOUT` | Sentry flush timeout in seconds |
 | `DTKT_BUCKET_NAME` | GCS bucket name |
 | `DTKT_FIRESTORE_DATABASE` | Firestore database name |
 | `DTKT_FIRESTORE_SCANS_COLLECTION` | Firestore collection name |
 | `DTKT_SIGHTENGINE_API_USER` | Sightengine API user |
 | `DTKT_SIGHTENGINE_API_SECRET` | Sightengine API secret |
+| `DTKT_SIGHTENGINE_REFRESH_INTERVAL` | Sightengine client refresh interval in seconds |
+| `DTKT_SIGHTENGINE_MIN_INTERVAL` | Min seconds between Sightengine API calls (rate limit) |
 | `DTKT_AI_THRESHOLD` | Score threshold for AI/deepfake classification |
 | `DTKT_LOW_CONFIDENCE_MIN` | Lower bound for "unsure" range |
 | `DTKT_LOW_CONFIDENCE_MAX` | Upper bound for "unsure" range |
@@ -170,6 +174,12 @@ This builds Docker images, pushes to GCR, and runs `terraform apply` with auto-a
 | `DTKT_UPSTASH_REDIS_TOKEN` | Upstash Redis token |
 | `DTKT_RATE_LIMIT_WINDOW` | Rate limit window in seconds |
 | `DTKT_RATE_LIMIT_MAX` | Max scans per user per window |
+| `DTKT_REDIS_REFRESH_INTERVAL` | Redis client refresh interval in seconds |
+| `DTKT_MAX_POLLS_BEFORE_CAN` | Polls before Temporal continue-as-new |
+| `DTKT_MAX_SESSION_RETRIES` | TikTok session creation retry count |
+| `DTKT_SESSION_MAX_AGE_SECONDS` | TikTok API session max age before rotation |
+| `DTKT_SECRETS_CACHE_TTL` | Secret cache TTL in seconds |
+| `DTKT_SECRETS_REFRESH_INTERVAL` | Secret background refresh interval in seconds |
 | `DTKT_WEBSHARE_API_KEY` | Webshare proxy API key |
 | `DTKT_WEBSHARE_COUNTRY` | Proxy country code |
 | `DTKT_WEBSHARE_PROXY_COUNT` | Number of proxy slots |
@@ -189,6 +199,15 @@ This builds Docker images, pushes to GCR, and runs `terraform apply` with auto-a
 | `DTKT_GCP_SERVICE_ACCOUNT_JSON` | GCP SA JSON for GCS access |
 | `DTKT_DBG_ENA` | Enable debug screenshots |
 | `DTKT_GCS_DBGSC_PATH` | GCS path prefix for debug screenshots |
+| `DTKT_REPLIER_SESSION_TTL` | Camoufox browser session TTL in seconds |
+| `DTKT_REPLIER_BOOT_MAX_RETRIES` | Browser boot retry count |
+| `DTKT_GEO_LATITUDE` | Browser geolocation latitude |
+| `DTKT_GEO_LONGITUDE` | Browser geolocation longitude |
+| `DTKT_GEO_LANGUAGE` | Browser locale language |
+| `DTKT_GEO_REGION` | Browser locale region |
+| `DTKT_GEO_TIMEZONE` | Browser timezone |
+| `DTKT_SECRETS_CACHE_TTL` | Secret cache TTL in seconds |
+| `DTKT_SECRETS_REFRESH_INTERVAL` | Secret background refresh interval in seconds |
 | Proxy vars | Same as worker |
 
 ## Security
