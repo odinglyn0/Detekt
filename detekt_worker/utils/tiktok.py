@@ -98,8 +98,12 @@ async def ensure_session(force_fresh: bool = False) -> TikTokApi:
                     await asyncio.sleep(0.5)
                 return page
 
-            proxies = [get_proxy()]
-            logger.info("dtkt-session-using-proxy", server=proxies[0]["server"])
+            proxy = get_proxy()
+            proxies = [proxy] if proxy else None
+            if proxies:
+                logger.info("dtkt-session-using-proxy", server=proxies[0]["server"])
+            else:
+                logger.info("dtkt-session-no-proxy")
 
             await _api.create_sessions(
                 num_sessions=1,

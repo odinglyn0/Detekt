@@ -83,11 +83,19 @@ async def reply_to_comment(
                 if await trouble.count() > 0:
                     logger.warning("video-load-failed", attempt=attempt+1, aweme_id=aweme_id)
                     if attempt < 2:
-                        await asyncio.sleep(1)
+                        await asyncio.sleep(0.1)
                         continue
                     else:
                         raise Exception(f"Video failed to load after 3 attempts: {aweme_id}")
                 break
+
+            kb_close = page.locator('[class*="DivXMarkWrapper"]')
+            if await kb_close.count() > 0:
+                await kb_close.first.click(force=True)
+                logger.info("keyboard-shortcuts-popup-dismissed")
+                await asyncio.sleep(0.1)
+
+            await asyncio.sleep(0.1)
 
             t3 = time.monotonic()
             first_comment = page.locator(
@@ -96,37 +104,57 @@ async def reply_to_comment(
             await first_comment.wait_for(state="attached", timeout=10000)
             logger.info("reply-comment-visible", elapsed=f"{time.monotonic()-t3:.2f}s")
 
+            await asyncio.sleep(0.1)
+
             t4 = time.monotonic()
             reply_btn = first_comment.locator('[data-e2e="comment-reply-1"]')
-            await reply_btn.dispatch_event("click")
+            await reply_btn.click(force=True)
             logger.info("reply-btn-clicked", elapsed=f"{time.monotonic()-t4:.2f}s")
+
+            await asyncio.sleep(0.1)
 
             t5 = time.monotonic()
             editor = page.locator('[data-e2e="comment-input"] [contenteditable="true"]').first
-            await editor.wait_for(state="attached", timeout=5000)
+            await editor.wait_for(state="visible", timeout=5000)
+            logger.info("reply-editor-visible", elapsed=f"{time.monotonic()-t5:.2f}s")
+
+            await asyncio.sleep(0.1)
+
             await editor.click(force=True)
-            logger.info("reply-editor-ready", elapsed=f"{time.monotonic()-t5:.2f}s")
+            logger.info("reply-editor-ready")
+
+            await asyncio.sleep(0.1)
 
             t6 = time.monotonic()
             await page.keyboard.type(f"@{initiator}", delay=30)
-            await asyncio.sleep(0.3)
             logger.info("reply-mention-typed", elapsed=f"{time.monotonic()-t6:.2f}s", chars=len(initiator)+1)
+
+            await asyncio.sleep(0.1)
 
             t7 = time.monotonic()
             mention_item = page.locator('[data-e2e="comment-at-list"][data-index="0"]').first
             try:
-                await mention_item.wait_for(state="attached", timeout=5000)
+                await mention_item.wait_for(state="visible", timeout=5000)
                 logger.info("reply-popover-visible", elapsed=f"{time.monotonic()-t7:.2f}s")
-                await mention_item.dispatch_event("click")
-                logger.info("mention-selected", initiator=initiator, aweme_id=aweme_id)
+
+                await asyncio.sleep(0.1)
+
+                await mention_item.click(force=True)
+                logger.info("mention-clicked", initiator=initiator, aweme_id=aweme_id)
+
+                await asyncio.sleep(0.1)
+
             except Exception as exc:
                 logger.warning("mention-popover-failed", initiator=initiator, aweme_id=aweme_id,
                                elapsed=f"{time.monotonic()-t7:.2f}s", error=str(exc))
                 await page.keyboard.type(" ", delay=5)
+                await asyncio.sleep(0.1)
 
             t8 = time.monotonic()
             await page.keyboard.type(message, delay=5)
             logger.info("reply-message-typed", elapsed=f"{time.monotonic()-t8:.2f}s", chars=len(message))
+
+            await asyncio.sleep(0.1)
 
             t9 = time.monotonic()
             publish_future = asyncio.get_running_loop().create_future()
@@ -139,7 +167,7 @@ async def reply_to_comment(
             page.on("response", on_response)
 
             post_btn = page.locator('[data-e2e="comment-post"]').first
-            await post_btn.dispatch_event("click")
+            await post_btn.click(force=True)
             logger.info("reply-post-btn-clicked", elapsed=f"{time.monotonic()-t9:.2f}s")
 
             try:

@@ -8,9 +8,10 @@ from proxy import get_proxy
 from log import logger
 
 
-_proxy = get_proxy()
+_proxy = None
 
 SESSION_TTL = 12 * 60 * 60
+BOOT_MAX_RETRIES = 3
 
 _browser = None
 _context = None
@@ -28,30 +29,51 @@ class SessionRebootError(Exception):
 
 
 async def _boot():
-    global _browser, _context, _page, _camoufox_cm, _started_at, _status8_detected
-    _status8_detected = False
-    _camoufox_cm = AsyncCamoufox(
-        headless="virtual",
-        humanize=True,
-        geoip=True,
-        os="windows",
-        screen=Screen(min_width=1920, min_height=1080, max_width=1920, max_height=1080),
-        window=(1920, 1080),
-        proxy=_proxy,
-    )
-    _browser = await _camoufox_cm.__aenter__()
-    if _browser.contexts:
-        _context = _browser.contexts[0]
-    else:
-        _context = await _browser.new_context()
-    cookies = load_cookies()
-    await _context.add_cookies(cookies)
-    _page = await _context.new_page()
-    await _page.set_viewport_size({"width": 1920, "height": 1080})
-    _attach_status8_listener(_page)
-    await _page.goto("https://www.tiktok.com/explore", wait_until="domcontentloaded")
-    _started_at = time.monotonic()
-    logger.info("camoufox-booted")
+    global _browser, _context, _page, _camoufox_cm, _started_at, _status8_detected, _proxy
+    last_err = None
+    for attempt in range(1, BOOT_MAX_RETRIES + 1):
+        _status8_detected = False
+        _proxy = get_proxy()
+        proxy_arg = _proxy if _proxy else None
+        try:
+            _camoufox_cm = AsyncCamoufox(
+                headless=False,
+                humanize=True,
+                geoip=False,
+                os=('windows', 'macos', 'linux'),
+                screen=Screen(max_width=1920, max_height=1080),
+                window=(1920, 1080),
+                proxy=proxy_arg,
+                i_know_what_im_doing=True,
+                config={
+                    "geolocation:latitude": 53.6252,
+                    "geolocation:longitude": -9.2166,
+                    "locale:language": "en",
+                    "locale:region": "IE",
+                    "timezone": "Europe/Dublin",
+                }
+            )
+            _browser = await _camoufox_cm.__aenter__()
+            if _browser.contexts:
+                _context = _browser.contexts[0]
+            else:
+                _context = await _browser.new_context()
+            cookies = load_cookies()
+            await _context.add_cookies(cookies)
+            _page = await _context.new_page()
+            await _page.set_viewport_size({"width": 1920, "height": 1080})
+            _attach_status8_listener(_page)
+            await _page.goto("https://www.tiktok.com/explore", wait_until="domcontentloaded")
+            _started_at = time.monotonic()
+            logger.info("camoufox-booted", attempt=attempt)
+            return
+        except Exception as exc:
+            last_err = exc
+            logger.warning("boot-failed", attempt=attempt, error=str(exc))
+            await _teardown()
+            if attempt < BOOT_MAX_RETRIES:
+                await asyncio.sleep(2)
+    raise last_err
 
 
 async def _teardown():
