@@ -83,11 +83,15 @@ def check_image(image_url: str) -> dict:
 
     output_ai = client_ai.check("genai").set_url(image_url)
     if output_ai.get("status") == "failure":
-        raise RuntimeError(f"sightengine genai failed: {output_ai.get('error', {}).get('message', 'unknown')}")
+        raise RuntimeError(
+            f"sightengine genai failed: {output_ai.get('error', {}).get('message', 'unknown')}"
+        )
 
     output_df = client_df.check("deepfake").set_url(image_url)
     if output_df.get("status") == "failure":
-        raise RuntimeError(f"sightengine deepfake failed: {output_df.get('error', {}).get('message', 'unknown')}")
+        raise RuntimeError(
+            f"sightengine deepfake failed: {output_df.get('error', {}).get('message', 'unknown')}"
+        )
 
     ai_score = output_ai.get("type", {}).get("ai_generated", 0.0)
     deepfake_score = output_df.get("type", {}).get("deepfake", 0.0)
@@ -107,11 +111,15 @@ def check_video(video_url: str) -> dict:
 
     output_ai = client_ai.check("genai").video_sync(video_url)
     if output_ai.get("status") == "failure":
-        raise RuntimeError(f"sightengine genai failed: {output_ai.get('error', {}).get('message', 'unknown')}")
+        raise RuntimeError(
+            f"sightengine genai failed: {output_ai.get('error', {}).get('message', 'unknown')}"
+        )
 
     output_df = client_df.check("deepfake").video_sync(video_url)
     if output_df.get("status") == "failure":
-        raise RuntimeError(f"sightengine deepfake failed: {output_df.get('error', {}).get('message', 'unknown')}")
+        raise RuntimeError(
+            f"sightengine deepfake failed: {output_df.get('error', {}).get('message', 'unknown')}"
+        )
 
     frames_ai = output_ai.get("data", {}).get("frames", [])
     frames_df = output_df.get("data", {}).get("frames", [])
@@ -128,7 +136,9 @@ def check_video(video_url: str) -> dict:
     ai_scores = [f.get("type", {}).get("ai_generated", 0.0) for f in frames_ai]
     deepfake_scores = [f.get("type", {}).get("deepfake", 0.0) for f in frames_df]
     avg_ai = sum(ai_scores) / len(ai_scores) if ai_scores else 0.0
-    avg_deepfake = sum(deepfake_scores) / len(deepfake_scores) if deepfake_scores else 0.0
+    avg_deepfake = (
+        sum(deepfake_scores) / len(deepfake_scores) if deepfake_scores else 0.0
+    )
 
     return {
         "dtkt_ai_score": avg_ai,
