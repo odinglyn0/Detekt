@@ -10,7 +10,7 @@ import yt_dlp
 import tempfile
 import os
 
-from utils.webshare import get_proxy, get_proxy_url
+from utils.proxy import get_proxy, get_proxy_url
 from utils.secrets import get_secret
 
 logger = structlog.get_logger()

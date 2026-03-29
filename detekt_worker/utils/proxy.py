@@ -1,9 +1,13 @@
 from webshare import ApiClient
 from utils.secrets import get_secret
+import random
 import requests
 import structlog
 
 logger = structlog.get_logger()
+
+_HOST = "p.webshare.io"
+_PORT = 80
 
 
 def get_proxy() -> dict:
@@ -11,28 +15,24 @@ def get_proxy() -> dict:
     country = get_secret("DTKT_WEBSHARE_COUNTRY")
 
     client = ApiClient(api_key)
+    config = client.get_proxy_config()
     proxies = client.get_proxy_list(mode="backbone", country_code_in=country)
-    results = proxies.get_results()
+    count = proxies.count
+    idx = random.randint(1, max(count, 1))
+    username = f"{config.username}-{country.lower()}-{idx}"
+    password = config.password
 
-    if not results:
-        logger.error("webshare-no-proxies", country=country)
-        raise RuntimeError(f"No Webshare proxies available for {country}")
-
-    p = results[0]
-    logger.info("webshare-proxy-loaded", country=p.country_code, host=p.proxy_address)
+    logger.info("webshare-proxy-loaded", country=country, host=_HOST)
     return {
-        "server": f"http://{p.proxy_address}:{p.port}",
-        "username": p.username,
-        "password": p.password,
+        "server": f"http://{_HOST}:{_PORT}",
+        "username": username,
+        "password": password,
     }
 
 
 def get_proxy_url() -> str:
     p = get_proxy()
-    username = p["username"]
-    password = p["password"]
-    server = p["server"]
-    return f"http://{username}:{password}@{server.removeprefix('http://')}"
+    return f"http://{p['username']}:{p['password']}@{_HOST}:{_PORT}"
 
 
 def verify_proxy():

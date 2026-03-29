@@ -4,7 +4,7 @@ import sentry_sdk
 from browserforge.fingerprints import Screen
 from camoufox.async_api import AsyncCamoufox
 from cookies import load_cookies
-from webshare import get_proxy
+from proxy import get_proxy
 from log import logger
 
 

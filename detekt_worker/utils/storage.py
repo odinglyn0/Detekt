@@ -9,7 +9,7 @@ import structlog
 
 from utils.gcp_credentials import get_credentials, get_project_id
 from utils.secrets import get_secret
-from utils.webshare import get_proxy_url
+from utils.proxy import get_proxy_url
 
 logger = structlog.get_logger()
 
