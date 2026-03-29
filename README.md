@@ -64,7 +64,7 @@ Supports videos and multi-image slideshows (carousels). Each image in a carousel
     ┌────┴────────────────────────────────┐
     │  Firestore    GCS bucket    Upstash │
     │  (scan cache  (media        Redis   │
-    │   + dedup)     staging)   (rate lim) │
+    │   + dedup)     staging)   (rate lim)│
     └─────────────────────────────────────┘
 ```
 
