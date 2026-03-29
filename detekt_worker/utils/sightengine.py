@@ -76,46 +76,66 @@ def _get_client() -> SightengineClient:
 
 
 def check_image(image_url: str) -> dict:
-    client = _get_client()
     threshold = float(get_secret("DTKT_AI_THRESHOLD"))
-    output = client.check("genai,deepfake").set_url(image_url)
-    ai_score = output.get("type", {}).get("ai_generated", 0.0)
-    deepfake_score = output.get("type", {}).get("deepfake", 0.0)
+
+    client_ai = _get_client()
+    client_df = _get_client()
+
+    output_ai = client_ai.check("genai").set_url(image_url)
+    if output_ai.get("status") == "failure":
+        raise RuntimeError(f"sightengine genai failed: {output_ai.get('error', {}).get('message', 'unknown')}")
+
+    output_df = client_df.check("deepfake").set_url(image_url)
+    if output_df.get("status") == "failure":
+        raise RuntimeError(f"sightengine deepfake failed: {output_df.get('error', {}).get('message', 'unknown')}")
+
+    ai_score = output_ai.get("type", {}).get("ai_generated", 0.0)
+    deepfake_score = output_df.get("type", {}).get("deepfake", 0.0)
     return {
         "dtkt_ai_score": ai_score,
         "dtkt_deepfake_score": deepfake_score,
         "dtkt_is_ai": ai_score > threshold,
         "dtkt_is_deepfake": deepfake_score > threshold,
-        "dtkt_raw": output,
+        "dtkt_raw": {"genai": output_ai, "deepfake": output_df},
     }
 
 
 def check_video(video_url: str) -> dict:
-    client = _get_client()
     threshold = float(get_secret("DTKT_AI_THRESHOLD"))
-    output = client.check("genai,deepfake").video_sync(video_url)
+    client_ai = _get_client()
+    client_df = _get_client()
 
-    frames = output.get("data", {}).get("frames", [])
-    if not frames:
+    output_ai = client_ai.check("genai").video_sync(video_url)
+    if output_ai.get("status") == "failure":
+        raise RuntimeError(f"sightengine genai failed: {output_ai.get('error', {}).get('message', 'unknown')}")
+
+    output_df = client_df.check("deepfake").video_sync(video_url)
+    if output_df.get("status") == "failure":
+        raise RuntimeError(f"sightengine deepfake failed: {output_df.get('error', {}).get('message', 'unknown')}")
+
+    frames_ai = output_ai.get("data", {}).get("frames", [])
+    frames_df = output_df.get("data", {}).get("frames", [])
+
+    if not frames_ai and not frames_df:
         return {
             "dtkt_ai_score": 0.0,
             "dtkt_deepfake_score": 0.0,
             "dtkt_is_ai": False,
             "dtkt_is_deepfake": False,
-            "dtkt_raw": output,
+            "dtkt_raw": {"genai": output_ai, "deepfake": output_df},
         }
 
-    ai_scores = [f.get("type", {}).get("ai_generated", 0.0) for f in frames]
-    deepfake_scores = [f.get("type", {}).get("deepfake", 0.0) for f in frames]
-    avg_ai = sum(ai_scores) / len(ai_scores)
-    avg_deepfake = sum(deepfake_scores) / len(deepfake_scores)
+    ai_scores = [f.get("type", {}).get("ai_generated", 0.0) for f in frames_ai]
+    deepfake_scores = [f.get("type", {}).get("deepfake", 0.0) for f in frames_df]
+    avg_ai = sum(ai_scores) / len(ai_scores) if ai_scores else 0.0
+    avg_deepfake = sum(deepfake_scores) / len(deepfake_scores) if deepfake_scores else 0.0
 
     return {
         "dtkt_ai_score": avg_ai,
         "dtkt_deepfake_score": avg_deepfake,
         "dtkt_is_ai": avg_ai > threshold,
         "dtkt_is_deepfake": avg_deepfake > threshold,
-        "dtkt_raw": output,
+        "dtkt_raw": {"genai": output_ai, "deepfake": output_df},
     }
 
 
