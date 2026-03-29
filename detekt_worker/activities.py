@@ -147,6 +147,19 @@ async def validate_and_download_media(mention: MentionData) -> ScanRequest | Non
         content_type=content_type,
     )
 
+    video_enabled = get_secret("DTKT_VIDEO_ENA").lower() in ("true", "1", "yes")
+    photo_enabled = get_secret("DTKT_PHOTO_ENA").lower() in ("true", "1", "yes")
+
+    if content_type == 1 and not video_enabled:
+        logger.info("dtkt-video-disabled", vid=mention.aweme_id)
+        await store_skipped(mention.aweme_id, "video_disabled", cid=mention.comment_id)
+        return None
+
+    if content_type == 0 and not photo_enabled:
+        logger.info("dtkt-photo-disabled", vid=mention.aweme_id)
+        await store_skipped(mention.aweme_id, "photo_disabled", cid=mention.comment_id)
+        return None
+
     image_urls = None
 
     if content_type == 0:
