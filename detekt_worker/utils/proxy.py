@@ -6,25 +6,21 @@ import structlog
 
 logger = structlog.get_logger()
 
-_HOST = "p.webshare.io"
-_PORT = 80
-
 
 def get_proxy() -> dict:
     api_key = get_secret("DTKT_WEBSHARE_API_KEY")
     country = get_secret("DTKT_WEBSHARE_COUNTRY")
+    count = int(get_secret("DTKT_WEBSHARE_PROXY_COUNT"))
 
     client = ApiClient(api_key)
     config = client.get_proxy_config()
-    proxies = client.get_proxy_list(mode="backbone", country_code_in=country)
-    count = proxies.count
-    idx = random.randint(1, max(count, 1))
+    idx = random.randint(1, count)
     username = f"{config.username}-{country.lower()}-{idx}"
     password = config.password
 
-    logger.info("webshare-proxy-loaded", country=country, host=_HOST)
+    logger.info("webshare-proxy-loaded", country=country, host="p.webshare.io", idx=idx)
     return {
-        "server": f"http://{_HOST}:{_PORT}",
+        "server": "http://p.webshare.io:80",
         "username": username,
         "password": password,
     }
@@ -32,11 +28,12 @@ def get_proxy() -> dict:
 
 def get_proxy_url() -> str:
     p = get_proxy()
-    return f"http://{p['username']}:{p['password']}@{_HOST}:{_PORT}"
+    return f"http://{p['username']}:{p['password']}@p.webshare.io:80"
 
 
 def verify_proxy():
     url = get_proxy_url()
-    resp = requests.get("https://api.ipify.org/?format=json", proxies={"http": url, "https": url}, timeout=10)
+    logger.info("webshare-proxy-verify", url=url.split("@")[1])
+    resp = requests.get("http://api.ipify.org/?format=json", proxies={"http": url, "https": url}, timeout=10)
     ip = resp.json().get("ip")
     logger.info("webshare-proxy-ip", ip=ip)
