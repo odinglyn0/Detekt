@@ -1,4 +1,5 @@
 camoufox[geoip]==0.4.11
+humantyping[playwright]
 numpy==2.4.3
 temporalio==1.24.0
 google-cloud-storage

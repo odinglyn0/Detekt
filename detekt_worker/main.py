@@ -94,8 +94,16 @@ async def run() -> None:
         shutdown_event.set()
 
     loop = asyncio.get_event_loop()
-    for sig in (signal.SIGINT, signal.SIGTERM):
-        loop.add_signal_handler(sig, _handle_signal)
+    try:
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            loop.add_signal_handler(sig, _handle_signal)
+    except NotImplementedError:
+        def _sync_handler(signum, frame):
+            loop.call_thread_safe(shutdown_event.set)
+            logger.info("dtkt-shutdown-requested")
+
+        signal.signal(signal.SIGINT, _sync_handler)
+        signal.signal(signal.SIGTERM, _sync_handler)
 
     async with worker:
         logger.info("dtkt-worker-started", task_queue=DTKT_TASK_QUEUE)

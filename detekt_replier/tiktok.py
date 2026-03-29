@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import random
 import time
 from browser import (
     get_page,
@@ -10,6 +11,7 @@ from browser import (
     SessionRebootError,
 )
 from debug_screenshots import DebugScreenshots
+from humantyping import HumanTyper
 from log import logger
 
 _routes_installed = False
@@ -151,8 +153,10 @@ async def reply_to_comment(
                 await asyncio.sleep(0.1)
 
             t8 = time.monotonic()
-            await page.keyboard.type(message, delay=5)
-            logger.info("reply-message-typed", elapsed=f"{time.monotonic()-t8:.2f}s", chars=len(message))
+            wpm = random.randint(65, 120)
+            typer = HumanTyper(wpm=wpm)
+            await typer.type(editor, message)
+            logger.info("reply-message-typed", elapsed=f"{time.monotonic()-t8:.2f}s", chars=len(message), wpm=wpm)
 
             await asyncio.sleep(0.1)
 
@@ -180,6 +184,21 @@ async def reply_to_comment(
                 return False
 
             page.remove_listener("response", on_response)
+
+            await asyncio.sleep(0.1)
+
+            # like the video
+            try:
+                like_btn = page.locator('[class*="DivLikeContainer"]').first
+                await like_btn.wait_for(state="visible", timeout=5000)
+                await asyncio.sleep(0.1)
+                await like_btn.click(force=True)
+                logger.info("video-liked", aweme_id=aweme_id)
+            except Exception as exc:
+                logger.warning("video-like-failed", aweme_id=aweme_id, error=str(exc))
+
+            await asyncio.sleep(0.1)
+
             got_status8 = check_status8()
             logger.info("reply-total-time", elapsed=f"{time.monotonic()-t0:.2f}s")
         finally:
