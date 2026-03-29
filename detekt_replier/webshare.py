@@ -1,6 +1,7 @@
 from webshare import ApiClient
 from secret_manager import get_secret
 from log import logger
+import requests
 
 
 def get_proxy() -> dict:
@@ -22,3 +23,11 @@ def get_proxy() -> dict:
         "username": p.username,
         "password": p.password,
     }
+
+
+def verify_proxy():
+    proxy = get_proxy()
+    url = f"http://{proxy['username']}:{proxy['password']}@{proxy['server'].removeprefix('http://')}"
+    resp = requests.get("https://api.ipify.org/?format=json", proxies={"http": url, "https": url}, timeout=10)
+    ip = resp.json().get("ip")
+    logger.info("webshare-proxy-ip", ip=ip)
