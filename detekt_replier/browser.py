@@ -21,6 +21,7 @@ def _get_session_ttl() -> int:
 def _get_boot_max_retries() -> int:
     return int(get_secret("DTKT_REPLIER_BOOT_MAX_RETRIES"))
 
+
 _browser = None
 _context = None
 _page = None
@@ -53,7 +54,7 @@ async def _boot():
                 window=(1920, 1080),
                 proxy=proxy_arg,
                 i_know_what_im_doing=True,
-                config={ # I'm manually setting these becuase my account on TikTok is Irish and I'm using rotating Irish residential proxies, GeoIP sometimes fucks up the accuracy so i'm ovveriding these, change these yourself or drop them if you are using a different method
+                config={  # I'm manually setting these becuase my account on TikTok is Irish and I'm using rotating Irish residential proxies, GeoIP sometimes fucks up the accuracy so i'm ovveriding these, change these yourself or drop them if you are using a different method
                     "geolocation:latitude": float(get_secret("DTKT_GEO_LATITUDE")),
                     "geolocation:longitude": float(get_secret("DTKT_GEO_LONGITUDE")),
                     "locale:language": get_secret("DTKT_GEO_LANGUAGE"),

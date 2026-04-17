@@ -156,9 +156,7 @@ async def ensure_session(force_fresh: bool = False) -> TikTokApi:
                 await asyncio.sleep(backoff)
 
     _report(last_exc)
-    logger.error(
-        "dtkt-session-create-failed-all-attempts", attempts=max_retries
-    )
+    logger.error("dtkt-session-create-failed-all-attempts", attempts=max_retries)
     raise last_exc
 
 
